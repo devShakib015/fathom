@@ -13,15 +13,6 @@ struct EditorView: View {
 
             CanvasView(model: model)
                 .frame(minWidth: 380)
-                .focusable()
-                .focusEffectDisabled()
-                .onKeyPress(.delete) { model.deleteSelected(); return .handled }
-                .onKeyPress(.deleteForward) { model.deleteSelected(); return .handled }
-                .onKeyPress(.leftArrow) { nudge(-1, 0) }
-                .onKeyPress(.rightArrow) { nudge(1, 0) }
-                .onKeyPress(.upArrow) { nudge(0, -1) }
-                .onKeyPress(.downArrow) { nudge(0, 1) }
-                .onKeyPress(.escape) { model.deselect(); return .handled }
 
             InspectorView(model: model)
                 .frame(minWidth: 250, idealWidth: 272, maxWidth: 340)
@@ -36,15 +27,6 @@ struct EditorView: View {
                 await model.resolve()
             }
         }
-    }
-
-    /// One grid step per press, or one hundredth with the grid off — the two
-    /// sizes of adjustment anyone actually wants from an arrow key.
-    private func nudge(_ dx: Double, _ dy: Double) -> KeyPress.Result {
-        guard !model.selection.isEmpty else { return .ignored }
-        let step = model.snapEnabled ? 1.0 / Double(model.gridDivisions) : 0.01
-        model.nudgeSelected(dx: dx * step, dy: dy * step)
-        return .handled
     }
 
     // MARK: - Left rail

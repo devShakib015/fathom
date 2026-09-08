@@ -17,6 +17,7 @@ struct FathomApp: App {
         .defaultSize(width: 1320, height: 800)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            EditorCommands()
         }
     }
 }

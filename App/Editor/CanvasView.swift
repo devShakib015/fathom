@@ -13,6 +13,10 @@ struct CanvasView: View {
     /// Points per unit of document space, chosen to fit the available room.
     @State private var zoom: Double = 2
     @State private var dragOrigin: [UUID: Frame] = [:]
+    /// Arrow-key nudging needs real keyboard focus, and clicking an element
+    /// goes through a drag gesture that does not grant it. The canvas takes
+    /// focus explicitly whenever anything on it is touched.
+    @FocusState private var focused: Bool
 
     private var canvasSize: CGSize {
         let reference = model.doc.family.referenceSize
@@ -26,6 +30,15 @@ struct CanvasView: View {
             surface
         }
         .background(Palette.background)
+    }
+
+    /// One grid step per press, or one hundredth with the grid off — the two
+    /// sizes of adjustment anyone actually wants from an arrow key.
+    private func nudge(_ dx: Double, _ dy: Double) -> KeyPress.Result {
+        guard !model.selection.isEmpty else { return .ignored }
+        let step = model.snapEnabled ? 1.0 / Double(model.gridDivisions) : 0.01
+        model.nudgeSelected(dx: dx * step, dy: dy * step)
+        return .handled
     }
 
     // MARK: - Toolbar
@@ -45,6 +58,15 @@ struct CanvasView: View {
             .controlSize(.small)
 
             Spacer()
+
+            Button { model.duplicateSelected() } label: { Image(systemName: "plus.square.on.square") }
+                .disabled(model.selection.isEmpty)
+                .help("Duplicate  ⌘D")
+            Button { model.deleteSelected() } label: { Image(systemName: "trash") }
+                .disabled(model.selection.isEmpty)
+                .help("Delete  ⌫")
+
+            Divider().frame(height: 16)
 
             Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward") }
                 .disabled(!model.canUndo)
@@ -78,7 +100,14 @@ struct CanvasView: View {
             ZStack {
                 Color.clear
                     .contentShape(Rectangle())
-                    .onTapGesture { model.deselect() }
+                    .focusable()
+                    .focusEffectDisabled()
+                    .focused($focused)
+                    .onKeyPress(.leftArrow) { nudge(-1, 0) }
+                    .onKeyPress(.rightArrow) { nudge(1, 0) }
+                    .onKeyPress(.upArrow) { nudge(0, -1) }
+                    .onKeyPress(.downArrow) { nudge(0, 1) }
+                    .onTapGesture { focused = true; model.deselect() }
 
                 widget
                     .padding(60)
@@ -93,7 +122,13 @@ struct CanvasView: View {
     private var widget: some View {
         ZStack(alignment: .topLeading) {
             model.doc.background.swatch
+            // The rendered document is a picture here, not an interaction
+            // target. Text and images are hit-testable views, and leaving them
+            // live means every canvas click races the selection layer above
+            // them — which is precisely how clicking an element stopped
+            // selecting it. Only the chrome should ever receive a click.
             WidgetCanvas(doc: model.doc, data: model.data)
+                .allowsHitTesting(false)
             if model.snapEnabled { grid }
             chrome
         }
@@ -137,7 +172,8 @@ struct CanvasView: View {
 
             ForEach(model.doc.elements) { element in
                 let rect = element.frame.resolved(in: canvasSize)
-                ElementHandle(element: element,
+                ElementHandle(focused: $focused,
+                              element: element,
                               rect: rect,
                               isSelected: model.selection.contains(element.id),
                               model: model,
@@ -157,6 +193,7 @@ struct CanvasView: View {
 /// needs to know where on the canvas it sits except when converting a drag
 /// back into unit space.
 private struct ElementHandle: View {
+    @FocusState.Binding var focused: Bool
     let element: Element
     let rect: CGRect
     let isSelected: Bool
@@ -238,6 +275,7 @@ private struct ElementHandle: View {
             }
             .onEnded { _ in
                 if !isMoving {
+                    focused = true
                     model.select(element.id, add: NSEvent.modifierFlags.contains(.shift))
                 }
                 isMoving = false

@@ -173,6 +173,34 @@ final class EditorModel {
         selection = Set(copies.map(\.id))
     }
 
+    /// Removes every element, leaving the document itself intact. Undoable
+    /// like anything else, which is the only reason it is safe to offer.
+    func deleteAll() {
+        guard !doc.elements.isEmpty else { return }
+        edit("Delete all") { $0.elements.removeAll() }
+        selection = []
+    }
+
+    func bringSelectedToFront() {
+        let ids = selection
+        guard !ids.isEmpty else { return }
+        edit("Bring to Front") { doc in
+            let moved = doc.elements.filter { ids.contains($0.id) }
+            doc.elements.removeAll { ids.contains($0.id) }
+            doc.elements.append(contentsOf: moved)
+        }
+    }
+
+    func sendSelectedToBack() {
+        let ids = selection
+        guard !ids.isEmpty else { return }
+        edit("Send to Back") { doc in
+            let moved = doc.elements.filter { ids.contains($0.id) }
+            doc.elements.removeAll { ids.contains($0.id) }
+            doc.elements.insert(contentsOf: moved, at: 0)
+        }
+    }
+
     /// Draw order. Later in the array is nearer the front, which matches how
     /// the renderer stacks them.
     func move(_ id: UUID, toFront: Bool) {

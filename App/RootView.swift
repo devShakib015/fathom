@@ -111,6 +111,10 @@ struct RootView: View {
                 EditorView(model: editor)
             }
             .background(Palette.background)
+            // Publishes the open document to the menu bar. Scene-scoped, so
+            // Delete and Select All work without the canvas having to win a
+            // focus fight with every text field in the inspector.
+            .focusedSceneValue(\.editor, editor)
         } else {
             ContentUnavailableView("No widget selected",
                                    systemImage: "square.dashed",
