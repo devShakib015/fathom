@@ -9,11 +9,16 @@ import CoreGraphics
 //     swift Tools/MakeIcon.swift && \
 //     iconutil -c icns -o App/Resources/Fathom.icns build/Fathom.iconset
 //
-// The mark is an echo sounding: a pulse at the top and three returns spreading
-// downward. Fathoms are measured by sounding, which is where the name comes
-// from, and it puts the icon in the same nautical family as Helm's wheel
-// without repeating it. It is also the shape of the thing the whole product
-// rests on — a signal sent at a fixed interval, coming back.
+// **A letterform, deliberately, and not a picture of what the app does.**
+// Fathom started as a widget builder and is becoming a tool for customising
+// macOS generally — menu bar, island, and more. A mark depicting three widget
+// tiles would be wrong the week the second surface ships, the way an icon of a
+// floppy disk went wrong. A brand mark survives the product growing; a
+// depiction dates with the feature it draws.
+//
+// The F is built from rounded bars, which is the app's own vocabulary — a bar
+// is one of the primitives you compose with — and the crossbar carries the
+// second accent so the mark is not one flat colour at a glance.
 
 let background = (top: NSColor(srgbRed: 0.063, green: 0.114, blue: 0.098, alpha: 1),   // #101E1A
                   bottom: NSColor(srgbRed: 0.020, green: 0.035, blue: 0.031, alpha: 1)) // #050908
@@ -77,43 +82,29 @@ func drawIcon(size: Int) -> Data? {
     context.strokePath()
     context.restoreGState()
 
-    // The sounding: one pulse, three returns.
-    let originX = plate.midX
-    let originY = plate.minY + plate.height * 0.775
-    // Three returns at large sizes, two at small. Apple simplifies its own
-    // icons the same way, and for the same reason: at sixteen points a third
-    // arc is not detail, it is mud.
+    // The F, on its own grid so the proportions are decided rather than
+    // eyeballed: a full-height stem, a full-width arm, a shorter crossbar.
     let dense = size > 40
-    let radii: [Double] = dense ? [0.20, 0.325, 0.45] : [0.22, 0.40]
-    let opacities: [Double] = dense ? [1.0, 0.62, 0.30] : [1.0, 0.55]
-    let weight = dense ? 0.052 : 0.075
-    let sweep = 126.0 * .pi / 180
+    let stroke = plate.width * (dense ? 0.132 : 0.155)
+    let height = plate.height * 0.60
+    let width = plate.width * 0.44
+    let left = plate.midX - width / 2
+    let bottom = plate.midY - height / 2
+    let radius = stroke / 2
 
-    for (index, factor) in radii.enumerated() {
-        let radius = plate.width * factor
-        let path = CGMutablePath()
-        path.addArc(center: CGPoint(x: originX, y: originY),
-                    radius: radius,
-                    startAngle: -.pi / 2 - sweep / 2,
-                    endAngle: -.pi / 2 + sweep / 2,
-                    clockwise: false)
-        context.addPath(path)
-        context.setLineWidth(plate.width * weight)
-        context.setLineCap(.round)
-        // The nearest return carries the second accent, so the mark is not one
-        // flat colour at a glance.
-        let colour = index == 0
-            ? accent.blended(withFraction: 0.25, of: accentAlt) ?? accent
-            : accent
-        context.setStrokeColor(colour.withAlphaComponent(opacities[index]).cgColor)
-        context.strokePath()
+    func bar(_ rect: CGRect, _ colour: NSColor) {
+        context.addPath(CGPath(roundedRect: rect, cornerWidth: radius,
+                               cornerHeight: radius, transform: nil))
+        context.setFillColor(colour.cgColor)
+        context.fillPath()
     }
 
-    // The pulse itself.
-    let dot = plate.width * (dense ? 0.052 : 0.070)
-    context.setFillColor(accent.cgColor)
-    context.fillEllipse(in: CGRect(x: originX - dot, y: originY - dot,
-                                   width: dot * 2, height: dot * 2))
+    bar(CGRect(x: left, y: bottom, width: stroke, height: height), accent)
+    bar(CGRect(x: left, y: bottom + height - stroke, width: width, height: stroke), accent)
+    // The crossbar sits a touch above the optical centre; placed at the true
+    // middle an F always reads as sagging.
+    bar(CGRect(x: left, y: bottom + height * 0.50 - stroke / 2,
+               width: width * 0.70, height: stroke), accentAlt)
 
     guard let image = context.makeImage() else { return nil }
     let rep = NSBitmapImageRep(cgImage: image)
