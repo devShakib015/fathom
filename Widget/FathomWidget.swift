@@ -1,109 +1,96 @@
+import AppIntents
 import SwiftUI
 import WidgetKit
-import os
 
 // The universal widget extension.
 //
 // There is exactly one of these and it never changes when a user builds a new
-// widget — it reads a document out of the shared container and interprets it.
-// That is not a design preference; WidgetKit extensions are compiled SwiftUI
-// and macOS will not load code at runtime, so a widget-per-user would need a
+// widget — it reads a document out of the shared store and interprets it. That
+// is not a design preference; WidgetKit extensions are compiled SwiftUI and
+// macOS will not load code at runtime, so a widget-per-user would need a
 // compiler on the user's Mac and a signature it could never get.
 
 struct DocumentEntry: TimelineEntry {
     let date: Date
     let doc: WidgetDoc?
     let data: ResolvedData
-    /// Which provider callback produced this entry. WidgetKit will happily
-    /// show a placeholder forever if `getTimeline` never calls back, and the
-    /// two states are indistinguishable on screen without this.
     var family: WidgetDoc.Family = .small
+    /// Which provider callback produced this entry. WidgetKit will happily
+    /// show a placeholder forever if the timeline never arrives, and the two
+    /// states are indistinguishable on screen without this.
     var origin: String = "?"
     var diagnosis: StoreDiagnosis = StoreDiagnosis(urlResolves: false, readable: false,
                                                    writable: false, documentCount: 0,
                                                    familiesPresent: [], containerPath: "not checked")
 }
 
-struct DocumentProvider: TimelineProvider {
-    let family: WidgetDoc.Family
-
-    /// Every reload leaves a line in the unified log. Not for debugging — it is
-    /// how the cadence gets measured on a real desktop, because trap 4 says any
-    /// timing taken under Xcode is fiction. Read it with:
-    ///   log show --last 1h --predicate 'subsystem == "com.devshakib.fathom"'
-    private static let log = Logger(subsystem: "com.devshakib.fathom", category: "timeline")
+/// One provider, generic over the four per-family configuration intents.
+struct DocumentProvider<I: DocumentSelectingIntent>: AppIntentTimelineProvider {
+    private var family: WidgetDoc.Family { I.family }
 
     func placeholder(in context: Context) -> DocumentEntry {
         let diagnosis = StoreDiagnosis.current()
         ExtensionTrace.write("placeholder family=\(family.rawValue) \(diagnosis.summary)")
         return DocumentEntry(date: Date(),
-                             doc: DocumentStore.shared.activeDocument(for: family),
+                             doc: DocumentCatalog.document(selected: nil, family: family),
                              data: ResolvedData(),
-                             family: family, origin: "placeholder",
+                             family: family,
+                             origin: "placeholder",
                              diagnosis: diagnosis)
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (DocumentEntry) -> Void) {
+    func snapshot(for configuration: I, in context: Context) async -> DocumentEntry {
         let diagnosis = StoreDiagnosis.current()
-        let doc = DocumentStore.shared.activeDocument(for: family)
+        let doc = DocumentCatalog.document(selected: configuration.selectedDocumentID, family: family)
         ExtensionTrace.write("snapshot family=\(family.rawValue) doc=\(doc?.name ?? "none") \(diagnosis.summary)")
         // The gallery snapshot must not wait on somebody's endpoint, so system
-        // values only, resolved synchronously. A widget being previewed on a
-        // slow connection should still show its layout instantly.
-        let data = doc.map { previewData(for: $0) } ?? ResolvedData()
-        completion(DocumentEntry(date: Date(), doc: doc, data: data,
-                                 family: family, origin: "snapshot", diagnosis: diagnosis))
+        // values only. A widget being previewed on a slow connection should
+        // still show its layout instantly.
+        return DocumentEntry(date: Date(),
+                             doc: doc,
+                             data: doc.map { Self.systemOnlyData($0) } ?? ResolvedData(),
+                             family: family,
+                             origin: "snapshot",
+                             diagnosis: diagnosis)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<DocumentEntry>) -> Void) {
+    func timeline(for configuration: I, in context: Context) async -> Timeline<DocumentEntry> {
         let now = Date()
         let diagnosis = StoreDiagnosis.current()
-        let doc = DocumentStore.shared.activeDocument(for: family)
+        let doc = DocumentCatalog.document(selected: configuration.selectedDocumentID, family: family)
         ExtensionTrace.write("timeline family=\(family.rawValue) doc=\(doc?.name ?? "none") \(diagnosis.summary)")
-
-        func finish(_ entry: DocumentEntry, refresh: TimeInterval) {
-            completion(Timeline(entries: [entry], policy: .after(now.addingTimeInterval(refresh))))
-        }
 
         guard let doc else {
             // Nothing designed for this family yet. Still schedule a reload,
             // otherwise placing a widget before building one leaves it blank
             // permanently rather than until the next tick.
-            finish(DocumentEntry(date: now, doc: nil, data: ResolvedData(),
-                                 family: family, origin: "timeline", diagnosis: diagnosis),
-                   refresh: WidgetDoc.refreshFloor)
-            return
+            let entry = DocumentEntry(date: now, doc: nil, data: ResolvedData(),
+                                      family: family, origin: "timeline", diagnosis: diagnosis)
+            return Timeline(entries: [entry], policy: .after(now.addingTimeInterval(WidgetDoc.refreshFloor)))
         }
 
-        let refresh = max(doc.minimumRefresh, WidgetDoc.refreshFloor)
+        let data = doc.sources.allSatisfy({ $0.kind == .system })
+            ? Self.systemOnlyData(doc, now: now)          // no network, no waiting
+            : await DataResolver.resolve(doc, now: now)
 
-        // A document with no network source needs no concurrency, and going
-        // async anyway would mean returning from `getTimeline` before calling
-        // back — which is the one shape where WidgetKit can keep showing the
-        // placeholder forever with nothing to say why.
-        if doc.sources.allSatisfy({ $0.kind == .system }) {
-            var data = ResolvedData(capturedAt: now)
-            for source in doc.sources {
-                data.trees[source.id] = SystemSource.snapshot(now: now)
-            }
-            trace(doc, data)
-            finish(DocumentEntry(date: now, doc: doc, data: data,
-                                 family: family, origin: "timeline", diagnosis: diagnosis),
-                   refresh: refresh)
-            return
-        }
+        trace(doc, data)
+        let entry = DocumentEntry(date: now, doc: doc, data: data,
+                                  family: family, origin: "timeline", diagnosis: diagnosis)
 
-        Task {
-            let data = await DataResolver.resolve(doc, now: now)
-            trace(doc, data)
-            // One entry per reload rather than a pre-computed run of them.
-            // Pre-computing is the standard iOS workaround for a reload budget;
-            // on macOS the floor is 64 seconds and does not decay, so asking
-            // again is both allowed and more accurate than guessing the future.
-            finish(DocumentEntry(date: now, doc: doc, data: data,
-                                 family: family, origin: "timeline", diagnosis: diagnosis),
-                   refresh: refresh)
+        // One entry per reload rather than a pre-computed run of them.
+        // Pre-computing is the standard iOS workaround for a reload budget; on
+        // macOS the floor is 64 seconds and does not decay, so asking again is
+        // both allowed and more accurate than guessing the future.
+        let next = now.addingTimeInterval(max(doc.minimumRefresh, WidgetDoc.refreshFloor))
+        return Timeline(entries: [entry], policy: .after(next))
+    }
+
+    private static func systemOnlyData(_ doc: WidgetDoc, now: Date = Date()) -> ResolvedData {
+        var data = ResolvedData(capturedAt: now)
+        for source in doc.sources where source.kind == .system {
+            data.trees[source.id] = SystemSource.snapshot(now: now)
         }
+        return data
     }
 
     private func trace(_ doc: WidgetDoc, _ data: ResolvedData) {
@@ -113,16 +100,6 @@ struct DocumentProvider: TimelineProvider {
             .joined(separator: " ")
         ExtensionTrace.write("rendered family=\(family.rawValue) doc=\(doc.name) stale=\(data.isStale) [\(rendered)]")
     }
-
-    private func previewData(for doc: WidgetDoc) -> ResolvedData {
-        var data = ResolvedData(capturedAt: Date())
-        for source in doc.sources where source.kind == .system {
-            data.trees[source.id] = SystemSource.snapshot()
-        }
-        return data
-    }
-
-    private var fallbackDocument: WidgetDoc? { nil }
 }
 
 struct DocumentWidgetView: View {
@@ -146,9 +123,9 @@ struct DocumentWidgetView: View {
 ///
 /// A widget extension has no console and no usable debugger (trap 4), and on
 /// this machine the unified log returns nothing at all. So the widget face is
-/// the diagnostic channel. "No widget yet" and "the App Group entitlement did
-/// not survive signing" are completely different problems that would otherwise
-/// look identical from across the room.
+/// the diagnostic channel. "No widget yet" and "the shared store is denied to
+/// this build's signature" are completely different problems that would
+/// otherwise look identical from across the room.
 struct EmptyStateView: View {
     let family: WidgetDoc.Family
     let diagnosis: StoreDiagnosis
@@ -175,8 +152,7 @@ struct EmptyStateView: View {
             Spacer(minLength: 0)
 
             // The state of the store as the extension sees it. Small and dim:
-            // it should be readable when you go looking and ignorable when you
-            // are not.
+            // readable when you go looking, ignorable when you are not.
             Text("\(origin) · \(diagnosis.summary)")
                 .font(.system(size: 8, design: .monospaced))
                 .foregroundStyle(Palette.textDim.opacity(0.65))
@@ -190,27 +166,32 @@ struct EmptyStateView: View {
 
 // MARK: - Configurations
 
-// One `Widget` per family. WidgetKit picks the configuration by the family the
-// user placed, and each one loads the document assigned to that size.
+// One `Widget` per family. WidgetKit picks the configuration by the size the
+// user placed, and each carries its own intent so the picker only offers
+// designs authored for that size.
 
 struct FathomSmallWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "FathomSmall", provider: DocumentProvider(family: .small)) {
+        AppIntentConfiguration(kind: "FathomSmall",
+                               intent: SmallWidgetIntent.self,
+                               provider: DocumentProvider<SmallWidgetIntent>()) {
             DocumentWidgetView(entry: $0)
         }
         .configurationDisplayName("Fathom — Small")
         .description("A widget you designed in Fathom.")
         .supportedFamilies([.systemSmall])
         // Elements are positioned in unit space across the whole box, so the
-        // system's default content margins would silently crop every design
-        // by a few points on each edge.
+        // system's default content margins would silently crop every design by
+        // a few points on each edge.
         .contentMarginsDisabled()
     }
 }
 
 struct FathomMediumWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "FathomMedium", provider: DocumentProvider(family: .medium)) {
+        AppIntentConfiguration(kind: "FathomMedium",
+                               intent: MediumWidgetIntent.self,
+                               provider: DocumentProvider<MediumWidgetIntent>()) {
             DocumentWidgetView(entry: $0)
         }
         .configurationDisplayName("Fathom — Medium")
@@ -222,7 +203,9 @@ struct FathomMediumWidget: Widget {
 
 struct FathomLargeWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "FathomLarge", provider: DocumentProvider(family: .large)) {
+        AppIntentConfiguration(kind: "FathomLarge",
+                               intent: LargeWidgetIntent.self,
+                               provider: DocumentProvider<LargeWidgetIntent>()) {
             DocumentWidgetView(entry: $0)
         }
         .configurationDisplayName("Fathom — Large")
@@ -234,7 +217,9 @@ struct FathomLargeWidget: Widget {
 
 struct FathomExtraLargeWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "FathomExtraLarge", provider: DocumentProvider(family: .extraLarge)) {
+        AppIntentConfiguration(kind: "FathomExtraLarge",
+                               intent: ExtraLargeWidgetIntent.self,
+                               provider: DocumentProvider<ExtraLargeWidgetIntent>()) {
             DocumentWidgetView(entry: $0)
         }
         .configurationDisplayName("Fathom — Extra large")
