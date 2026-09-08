@@ -32,6 +32,7 @@ struct BindingInspector: View {
             if let binding {
                 sourceRow(binding)
                 keyPathRow(binding)
+                transformRow(binding)
                 formatRows(binding)
                 fallbackRow(binding)
                 resolved(binding)
@@ -81,6 +82,81 @@ struct BindingInspector: View {
             }
         }
     }
+
+    /// The optional transform.
+    ///
+    /// Off by default and out of the way, because the large majority of
+    /// bindings just show what arrived. When it is on, the field validates as
+    /// you type: an expression that cannot parse is a red message here rather
+    /// than a widget that quietly renders its fallback on the desktop.
+    @ViewBuilder
+    private func transformRow(_ b: DataBinding) -> some View {
+        Toggle(isOn: Binding(
+            get: { b.hasExpression },
+            set: { on in
+                model.update(element.id, on ? "Add transform" : "Remove transform") {
+                    $0.binding?.expression = on ? "value" : nil
+                }
+            }
+        )) {
+            Text("Transform the value")
+                .font(.system(size: 11))
+        }
+        .toggleStyle(.switch)
+        .controlSize(.small)
+
+        if b.hasExpression {
+            TextField("value", text: bind(\.expression, "Transform").replacingNil(with: ""), axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 11, design: .monospaced))
+                .lineLimit(1...4)
+
+            if let problem = parseProblem(b) {
+                Label(problem, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("`value` is the field above. Other fields can be named directly.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Palette.textDim.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Menu {
+                ForEach(Self.recipes, id: \.expression) { recipe in
+                    Button(recipe.label) {
+                        model.update(element.id, "Transform") { $0.binding?.expression = recipe.expression }
+                    }
+                }
+            } label: {
+                Label("Examples", systemImage: "function")
+                    .font(.system(size: 10))
+            }
+            .menuStyle(.borderlessButton)
+        }
+    }
+
+    private func parseProblem(_ b: DataBinding) -> String? {
+        guard let source = b.expression, b.hasExpression else { return nil }
+        do { _ = try ExpressionParser.parse(source); return nil }
+        catch { return error.localizedDescription }
+    }
+
+    /// Starting points, chosen because each is a thing somebody will actually
+    /// want and none of them is obvious from a blank field.
+    private static let recipes: [(label: String, expression: String)] = [
+        ("Celsius to Fahrenheit", "round(value * 9 / 5 + 32, 1)"),
+        ("Round to one decimal", "round(value, 1)"),
+        ("Weather code to an SF Symbol",
+         "map(value, 0, \"sun.max.fill\", 1, \"cloud.sun.fill\", 2, \"cloud.fill\", 3, \"cloud.fill\", 61, \"cloud.rain.fill\", 95, \"cloud.bolt.fill\", \"cloud.fill\")"),
+        ("Word instead of a number", "if(value > 30, \"hot\", if(value > 15, \"mild\", \"cold\"))"),
+        ("Highest of a list", "highest(value)"),
+        ("Average of a list", "round(avg(value), 1)"),
+        ("Difference between two fields",
+         "round(field(\"current.temperature_2m\") - field(\"current.apparent_temperature\"), 1)"),
+        ("Fall back to another field", "coalesce(value, 0)"),
+    ]
 
     @ViewBuilder
     private func formatRows(_ b: DataBinding) -> some View {
@@ -133,6 +209,7 @@ struct BindingInspector: View {
     /// What the binding evaluates to at this instant.
     private func resolved(_ b: DataBinding) -> some View {
         let value = model.data.value(for: b)
+        let raw = model.data.rawValue(for: b)
         let hit = value != nil
         return HStack(spacing: 8) {
             Image(systemName: hit ? "checkmark.circle.fill" : "questionmark.circle.fill")
@@ -141,7 +218,10 @@ struct BindingInspector: View {
                 Text(model.data.text(for: element))
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(Palette.text)
-                Text(hit ? "raw: \(value!.stringValue)" : "no value at that path — showing the fallback")
+                Text(hit
+                     ? (b.hasExpression ? "\(raw?.stringValue ?? "null") → \(value!.stringValue)" : "raw: \(value!.stringValue)")
+                     : (b.hasExpression ? "the transform produced nothing — showing the fallback"
+                                        : "no value at that path — showing the fallback"))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(Palette.textDim)
                     .lineLimit(1)

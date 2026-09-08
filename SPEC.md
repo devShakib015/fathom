@@ -132,14 +132,15 @@ The v1 exists to prove the thesis, not to be the destination. Ship small.
    one is where the no-budget finding actually cashes out and it is the reason
    anyone will care.
 5. **An editor** — canvas, inspector, drag to position, snap to a grid.
-6. **A small starter library**, maybe eight widgets, that a user can place and
-   then open in the editor to see how it was made.
+6. ~~**A small starter library**, maybe eight widgets~~ — **superseded by
+   section 9.4**: a generated catalog of a few thousand, any of which can be
+   duplicated and edited.
 
 **Out of v1, explicitly:**
 
 - Sharing or importing other people's widgets. That needs a portable format,
   an import path, and a moderation story the moment a widget can call a URL.
-- Scripting or expressions. Tempting; it is a second product.
+- ~~Scripting or expressions.~~ **Moved in** — see section 9.4.
 - iOS. The whole premise is macOS-only.
 - Interactive widgets (App Intents / buttons). Add after the static case is good.
 
@@ -322,6 +323,49 @@ section 2 is.
 3. **Paste a URL, browse the parsed tree, drag a leaf onto an element.** The
    full binding UI, including arrays and type-to-format inference. This is the
    demo that makes the no-budget finding visible, so it is not the part to trim.
+
+### 9.4 Second round, 8 Sep 2026
+
+The owner asked for thousands of prebuilt widgets and "100% flexibility". Both
+change section 4, so they are recorded here rather than left implicit.
+
+**The catalog is generated, not hand-authored.** Roughly fifty designed layouts,
+each rendered across palettes, families and data sources, giving a browsable
+catalog in the low thousands where every entry descends from something a person
+composed. Hand-authoring a thousand widgets is a hundred thousand lines nobody
+can maintain, and the honest headline number has to be countable — accuracy in
+copy matters here as everywhere. Bundled as JSON, thumbnails rendered on demand,
+no network.
+
+**Expressions are in.** Section 4 called them a second product; they are the
+single largest source of the flexibility being asked for, so they now ship. A
+binding may carry a transform written in a small total language — arithmetic,
+comparisons, conditionals, lookup tables, array and string functions — evaluated
+by a Swift interpreter inside the extension. That is still data being
+interpreted, so the forced architecture of section 3 is unchanged.
+
+The ceiling is worth stating plainly, because "100%" cannot be met literally:
+macOS will not load compiled code at runtime, so a user can only ever compose
+the primitives shipped and transform values with the functions shipped. The
+honest promise is a wide vocabulary and an open transform layer, not arbitrary
+code.
+
+**Apple Foundation Models, in the app only.** On-device, no account, no network,
+free, and macOS 26 already the floor — it fits the section 2 promises exactly.
+It generates and restyles documents from a description and suggests bindings
+from a fetched tree. It does **not** run in the widget extension: keeping render
+time deterministic is what makes "at most 64 seconds stale" true, and an
+on-device model on every reload would be neither fast nor honest. Degrade
+quietly when Apple Intelligence is unavailable.
+
+**More Apple data sources.** EventKit (calendar, reminders), CoreLocation,
+richer IOKit and ProcessInfo (CPU, memory, thermal state, uptime), Bluetooth
+device battery. Each personal-information source needs its own entitlement, its
+own usage string and a permission the user grants.
+
+One that does not work: **WeatherKit authenticates with the app's identity**, and
+an ad-hoc signature has no team. It is unavailable to an unsigned build. The
+JSON source pointed at Open-Meteo is the free path and needs no key.
 
 ---
 

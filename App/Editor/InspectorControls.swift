@@ -154,3 +154,14 @@ struct OptionalColorRow: View {
         }
     }
 }
+
+extension Binding where Value == String? {
+    /// Lets an optional string drive a `TextField` without every call site
+    /// growing its own get/set pair.
+    func replacingNil(with placeholder: String) -> Binding<String> {
+        Binding<String>(
+            get: { wrappedValue ?? placeholder },
+            set: { wrappedValue = $0 }
+        )
+    }
+}

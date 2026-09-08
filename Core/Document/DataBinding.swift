@@ -11,14 +11,31 @@ struct DataBinding: Codable, Hashable {
     /// Dot path into the source's value tree. Array elements are indexed with
     /// brackets: `daily.temperature_2m_max[0]`, `list[2].main.temp`.
     var keyPath: String
+    /// An optional transform applied to the value at `keyPath` before it is
+    /// formatted, written in the small language in `Core/Expression`.
+    ///
+    /// nil, or empty, means show the value as it arrived — which is what the
+    /// overwhelming majority of bindings want, so it stays the default and the
+    /// inspector keeps it out of the way until asked for. When present, the
+    /// key path's own value is spelled `value` inside the expression.
+    var expression: String?
     var format: Format
     var fallback: String
 
-    init(sourceID: UUID, keyPath: String, format: Format = Format(kind: .text), fallback: String = "—") {
+    init(sourceID: UUID,
+         keyPath: String,
+         expression: String? = nil,
+         format: Format = Format(kind: .text),
+         fallback: String = "—") {
         self.sourceID = sourceID
         self.keyPath = keyPath
+        self.expression = expression
         self.format = format
         self.fallback = fallback
+    }
+
+    var hasExpression: Bool {
+        !(expression ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 

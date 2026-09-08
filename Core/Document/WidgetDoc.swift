@@ -21,7 +21,11 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
     /// Never below the measured system floor; see `refreshFloor`.
     var minimumRefresh: TimeInterval
 
-    static let currentSchemaVersion = 1
+    /// 2 added binding expressions. A document using one, opened by a build
+    /// that only knows version 1, would silently render the untransformed
+    /// value rather than fail — which is precisely the kind of quiet wrongness
+    /// the version number exists to catch once documents can be shared.
+    static let currentSchemaVersion = 2
 
     /// macOS substitutes its own minimum reload interval and then honours it
     /// exactly: measured at 64.15 s ± 0.15 over an hour, with no widening.

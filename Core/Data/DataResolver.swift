@@ -11,8 +11,31 @@ struct ResolvedData: Hashable, Sendable {
     var isStale: Bool = false
     var capturedAt: Date = .distantPast
 
-    func value(for binding: DataBinding) -> DataValue? {
+    /// The raw value at the binding's key path, before any transform.
+    func rawValue(for binding: DataBinding) -> DataValue? {
         trees[binding.sourceID]?[path: binding.keyPath]
+    }
+
+    /// What the binding actually produces: the key path's value, or the result
+    /// of its expression when it has one.
+    ///
+    /// A transform that evaluates to null is reported as nil so the binding's
+    /// `fallback` renders — an expression that cannot resolve should look
+    /// exactly like a fetch that failed, because from the widget's point of
+    /// view it is the same thing.
+    func value(for binding: DataBinding) -> DataValue? {
+        let tree = trees[binding.sourceID]
+        let own = tree?[path: binding.keyPath]
+        guard binding.hasExpression,
+              let source = binding.expression,
+              let program = try? ExpressionParser.parse(source)
+        else { return own }
+
+        let result = ExpressionEvaluator(tree: tree,
+                                         ownValue: own,
+                                         now: capturedAt == .distantPast ? Date() : capturedAt)
+            .evaluate(program)
+        return result == .null ? nil : result
     }
 
     /// The string an element renders, whether it is bound or literal.

@@ -291,8 +291,8 @@ enum Starters {
             name: "Open-Meteo",
             kind: .json,
             url: "https://api.open-meteo.com/v1/forecast?latitude=25.2048&longitude=55.2708"
-               + "&current=temperature_2m,relative_humidity_2m&daily=temperature_2m_max"
-               + "&forecast_days=7&timezone=auto")
+               + "&current=temperature_2m,relative_humidity_2m,weather_code,is_day"
+               + "&daily=temperature_2m_max&forecast_days=7&timezone=auto")
 
         return WidgetDoc(
             id: UUID(uuidString: "5B1F0F1A-0000-4000-A000-0000000000A3")!,
@@ -300,11 +300,37 @@ enum Starters {
             family: .medium,
             background: .glass,
             elements: [
+                // The icon follows the actual sky, which needs a lookup table
+                // rather than a binding — a WMO code is a number and an SF
+                // Symbol is a name, and nothing but a transform gets from one
+                // to the other. Nested so night is not drawn as daylight.
                 Element(name: "Icon", kind: .symbol,
                         frame: Frame(x: 0.045, y: 0.19, width: 0.095, height: 0.25),
                         style: Style(font: FontSpec(size: 18, weight: .regular),
                                      foreground: .accent, alignment: .center),
-                        text: "thermometer.medium"),
+                        text: "sun.max.fill",
+                        binding: DataBinding(
+                            sourceID: weather.id,
+                            keyPath: "current.weather_code",
+                            expression: """
+                            if(current.is_day == 0,
+                               map(value, 0, "moon.stars.fill", 1, "moon.stars.fill", \
+                                          2, "cloud.moon.fill", 3, "cloud.fill", \
+                                          45, "cloud.fog.fill", 48, "cloud.fog.fill", \
+                                          51, "cloud.drizzle.fill", 61, "cloud.rain.fill", \
+                                          63, "cloud.rain.fill", 65, "cloud.heavyrain.fill", \
+                                          71, "cloud.snow.fill", 80, "cloud.heavyrain.fill", \
+                                          95, "cloud.bolt.rain.fill", "cloud.fill"),
+                               map(value, 0, "sun.max.fill", 1, "sun.max.fill", \
+                                          2, "cloud.sun.fill", 3, "cloud.fill", \
+                                          45, "cloud.fog.fill", 48, "cloud.fog.fill", \
+                                          51, "cloud.drizzle.fill", 61, "cloud.rain.fill", \
+                                          63, "cloud.rain.fill", 65, "cloud.heavyrain.fill", \
+                                          71, "cloud.snow.fill", 80, "cloud.heavyrain.fill", \
+                                          95, "cloud.bolt.rain.fill", "cloud.fill"))
+                            """,
+                            format: Format(kind: .text),
+                            fallback: "questionmark")),
 
                 Element(name: "Temperature", kind: .text,
                         frame: Frame(x: 0.165, y: 0.11, width: 0.33, height: 0.35),
