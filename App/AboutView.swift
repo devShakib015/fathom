@@ -39,17 +39,11 @@ struct AboutView: View {
 
     private var masthead: some View {
         HStack(alignment: .top, spacing: 16) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(LinearGradient(colors: [Palette.surface, Palette.background],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Palette.accent.opacity(0.35), lineWidth: 1))
-                Image(systemName: "square.grid.2x2")
-                    .font(.system(size: 30, weight: .light))
-                    .foregroundStyle(Palette.accent)
-            }
-            .frame(width: 72, height: 72)
+            // The real icon, not a stand-in drawn to look like it. An About
+            // screen showing something the Dock does not is a small lie.
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .frame(width: 76, height: 76)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(AppInfo.name)
