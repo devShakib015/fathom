@@ -20,6 +20,13 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
     var sources: [DataSource]
     /// Never below the measured system floor; see `refreshFloor`.
     var minimumRefresh: TimeInterval
+    /// Which catalog entry this document was duplicated from, if any.
+    ///
+    /// Purely provenance — it lets the editor offer "revert to the original"
+    /// and lets the gallery show what you already have. It changes nothing
+    /// about rendering, which is why it does not move the schema version: an
+    /// older build ignoring it renders exactly the same widget.
+    var origin: String?
 
     /// 2 added binding expressions; 3 added nested children, conditional
     /// visibility, four element kinds and the second wave of style properties.
@@ -43,7 +50,8 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
          background: Background = .glass,
          elements: [Element] = [],
          sources: [DataSource] = [],
-         minimumRefresh: TimeInterval = WidgetDoc.refreshFloor) {
+         minimumRefresh: TimeInterval = WidgetDoc.refreshFloor,
+         origin: String? = nil) {
         self.schemaVersion = WidgetDoc.currentSchemaVersion
         self.id = id
         self.name = name
@@ -52,6 +60,7 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
         self.elements = elements
         self.sources = sources
         self.minimumRefresh = max(minimumRefresh, WidgetDoc.refreshFloor)
+        self.origin = origin
     }
 
     /// Every host this document will contact when it refreshes. Sorted and

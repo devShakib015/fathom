@@ -4,6 +4,7 @@ import WidgetKit
 struct RootView: View {
     @Environment(Library.self) private var library
     @State private var editor: EditorModel?
+    @State private var showingGallery = false
 
     var body: some View {
         @Bindable var library = library
@@ -12,10 +13,20 @@ struct RootView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 200, ideal: 224, max: 280)
         } detail: {
-            detail
+            if showingGallery {
+                GalleryView { doc in
+                    library.add(doc)
+                    showingGallery = false
+                }
+            } else {
+                detail
+            }
         }
         .background(Palette.background)
-        .onChange(of: library.selection, initial: true) { _, _ in openSelected() }
+        .onChange(of: library.selection, initial: true) { _, _ in
+            openSelected()
+            if library.selection != nil { showingGallery = false }
+        }
         // Refresh every document's thumbnail and resolved values once at
         // launch, not just the selected one — the library grid will want them,
         // and it is the only way to see that a document nobody has opened
@@ -53,9 +64,41 @@ struct RootView: View {
             .listStyle(.sidebar)
 
             Divider().overlay(Palette.hairline)
+            galleryButton
             newButton
             containerFooter
         }
+    }
+
+    /// The catalog is a destination, not a menu item — it is the on-ramp the
+    /// library was always meant to be, and burying it under a plus button
+    /// would make the app look like it ships three widgets.
+    private var galleryButton: some View {
+        Button {
+            showingGallery.toggle()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "square.grid.2x2.fill")
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Browse the catalog")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("\(Catalog.count) ready to use")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Palette.textDim)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(showingGallery ? Palette.accent.opacity(0.16) : Palette.surface.opacity(0.6),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(showingGallery ? Palette.accent.opacity(0.5) : Palette.hairline, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(showingGallery ? Palette.accent : Palette.text)
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
     }
 
     private var newButton: some View {

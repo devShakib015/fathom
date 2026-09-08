@@ -87,6 +87,20 @@ final class Library {
         return doc
     }
 
+    /// Takes a document out of the catalog and makes it the user's own — a new
+    /// identity, so the same entry can be added more than once and edited in
+    /// different directions.
+    func add(_ doc: WidgetDoc) {
+        var copy = doc
+        copy.id = UUID()
+        DocumentStore.shared.save(copy)
+        reload()
+        selection = copy.id
+        if DocumentStore.shared.activeDocumentID(for: copy.family) == nil {
+            DocumentStore.shared.setActiveDocument(copy.id, for: copy.family)
+        }
+    }
+
     func duplicate(_ doc: WidgetDoc) {
         var copy = doc
         copy.id = UUID()

@@ -12,6 +12,14 @@ struct ResolvedData: Hashable, Sendable {
     /// Downsampled bytes for every image URL the document referenced, fetched
     /// alongside the data because a widget's body cannot await anything.
     var images: [String: Data] = [:]
+    /// Show each element's design-time literal wherever a binding has nothing.
+    ///
+    /// For the catalog only. A gallery is showing you a *design*, so a CPU ring
+    /// should read "43%" rather than the dash it would honestly render before a
+    /// second sample exists — and rendering literals makes every thumbnail
+    /// deterministic, so it can be cached once and never goes stale. Everywhere
+    /// else this stays off: in the editor a wrong key path must look wrong.
+    var placeholders: Bool = false
     var capturedAt: Date = .distantPast
 
     /// Where an element sits: nothing, or one item of a repeater.
@@ -120,7 +128,9 @@ struct ResolvedData: Hashable, Sendable {
     /// The items a repeater draws.
     func items(for element: Element, scope: Scope = .root) -> [DataValue] {
         guard let binding = element.binding, let resolved = value(for: binding, scope: scope) else {
-            return []
+            // A list layout with no data would otherwise be a blank rectangle
+            // in the catalog, which says nothing about how it is laid out.
+            return placeholders ? Array(repeating: .null, count: 4) : []
         }
         if case .array(let items) = resolved { return items }
         if case .object(let pairs) = resolved { return pairs.map(\.value) }
@@ -130,18 +140,18 @@ struct ResolvedData: Hashable, Sendable {
     /// The string an element renders, whether it is bound or literal.
     func text(for element: Element, scope: Scope = .root) -> String {
         guard let binding = element.binding else { return element.text }
-        return ValueFormatter.string(value(for: binding, scope: scope),
-                                     format: binding.format,
-                                     fallback: binding.fallback)
+        let resolved = value(for: binding, scope: scope)
+        if placeholders, resolved == nil, !element.text.isEmpty { return element.text }
+        return ValueFormatter.string(resolved, format: binding.format, fallback: binding.fallback)
     }
 
     /// The 0…1 number an arc renders.
     func fraction(for element: Element, scope: Scope = .root) -> Double {
-        let raw: Double? = if let binding = element.binding {
-            value(for: binding, scope: scope)?.doubleValue
-        } else {
-            Double(element.text.trimmingCharacters(in: .whitespaces))
-        }
+        let bound = element.binding.flatMap { value(for: $0, scope: scope)?.doubleValue }
+        let literal = Double(element.text.trimmingCharacters(in: .whitespaces))
+        let raw: Double? = element.binding == nil
+            ? literal
+            : (bound ?? (placeholders ? literal : nil))
         guard let raw else { return 0 }
         // Same 0…1 vs 0…100 forgiveness the percent formatter applies, so an
         // arc and the label next to it never disagree.
@@ -152,7 +162,8 @@ struct ResolvedData: Hashable, Sendable {
     /// The series a sparkline renders.
     func series(for element: Element, scope: Scope = .root) -> [Double] {
         if let binding = element.binding {
-            return SeriesReader.series(from: value(for: binding, scope: scope))
+            let resolved = SeriesReader.series(from: value(for: binding, scope: scope))
+            if !resolved.isEmpty || !placeholders { return resolved }
         }
         return SeriesReader.literal(element.text)
     }

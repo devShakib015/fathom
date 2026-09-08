@@ -331,11 +331,25 @@ change section 4, so they are recorded here rather than left implicit.
 
 **The catalog is generated, not hand-authored.** Roughly fifty designed layouts,
 each rendered across palettes, families and data sources, giving a browsable
-catalog in the low thousands where every entry descends from something a person
-composed. Hand-authoring a thousand widgets is a hundred thousand lines nobody
-can maintain, and the honest headline number has to be countable — accuracy in
-copy matters here as everywhere. Bundled as JSON, thumbnails rendered on demand,
-no network.
+catalog where every entry descends from something a person composed.
+Hand-authoring a thousand widgets is a hundred thousand lines nobody can
+maintain, and the honest headline number has to be countable — accuracy in copy
+matters here as everywhere.
+
+Built 8 Sep: **23 layouts across 28 layout-and-size combinations × 20 palettes =
+560 entries.** Not the "low thousands" this section first guessed at, and the
+number is stated in the app beside its own arithmetic so nobody has to take it
+on trust. The count is a pure function of layouts, each around twenty-five
+lines against `Kit`, so it grows by adding to `Core/Catalog/Templates.swift` and
+nothing else.
+
+Generated at runtime rather than bundled as JSON, which is a change from the
+first draft of this section and a better one: nothing can fall out of step with
+the schema, there is no build step, and twenty palettes cost no bytes. Thumbnails
+render on demand from each element's design-time literal — no sources are
+resolved at all, so the gallery makes no network requests and no kernel reads,
+every thumbnail is deterministic and cacheable forever, and a catalog entry shows
+its *design* rather than this machine's current CPU.
 
 **Expressions are in.** Section 4 called them a second product; they are the
 single largest source of the flexibility being asked for, so they now ship. A
