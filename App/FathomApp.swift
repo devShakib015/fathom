@@ -1,9 +1,16 @@
 import SwiftUI
 import WidgetKit
 
+enum AboutWindow {
+    static let id = "about"
+}
+
 @main
 struct FathomApp: App {
     @State private var library = Library()
+    @Environment(\.openWindow) private var openWindow
+
+    private func openAbout() { openWindow(id: AboutWindow.id) }
 
     var body: some Scene {
         Window("Fathom", id: "main") {
@@ -17,8 +24,21 @@ struct FathomApp: App {
         .defaultSize(width: 1320, height: 800)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            // Replaces the stock About panel, which would show none of the
+            // three things section 2 requires be said plainly.
+            CommandGroup(replacing: .appInfo) {
+                Button("About \(AppInfo.name)") { openAbout() }
+            }
             EditorCommands()
         }
+
+        Window("About \(AppInfo.name)", id: AboutWindow.id) {
+            AboutView()
+                .environment(library)
+                .preferredColorScheme(.dark)
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
     }
 }
 
