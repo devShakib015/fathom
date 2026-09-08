@@ -19,6 +19,7 @@ struct Island: Codable, Hashable {
     /// Shown while the pointer is over it. nil means it never expands.
     var expandedDocumentID: UUID?
     var isEnabled: Bool
+    var reveal: Reveal
     var expandOnHover: Bool
     var refresh: TimeInterval
     var screenIndex: Int
@@ -33,14 +34,42 @@ struct Island: Codable, Hashable {
         self.documentID = documentID
         self.expandedDocumentID = nil
         self.isEnabled = true
+        self.reveal = .onApproach
         self.expandOnHover = true
         self.refresh = Island.defaultRefresh
         self.screenIndex = 0
         self.topGap = 0
     }
 
+    /// When the island is on screen at all.
+    ///
+    /// Hidden by default. An island that is always there is a widget in an
+    /// awkward place — the whole idea is that it arrives when you look for it
+    /// and gets out of the way when you do not.
+    enum Reveal: String, Codable, CaseIterable, Hashable {
+        /// Appears when the pointer comes near the notch.
+        case onApproach
+        /// Always on screen.
+        case always
+
+        var displayName: String {
+            switch self {
+            case .onApproach: "When the pointer reaches the notch"
+            case .always: "Always"
+            }
+        }
+
+        var explanation: String {
+            switch self {
+            case .onApproach: "Hidden until you move the pointer up to the notch, then it drops down."
+            case .always: "Stays on screen, under the menu bar, all the time."
+            }
+        }
+    }
+
     enum CodingKeys: String, CodingKey {
-        case documentID, expandedDocumentID, isEnabled, expandOnHover, refresh, screenIndex, topGap
+        case documentID, expandedDocumentID, isEnabled, reveal, expandOnHover
+        case refresh, screenIndex, topGap
     }
 
     init(from decoder: Decoder) throws {
@@ -48,6 +77,7 @@ struct Island: Codable, Hashable {
         documentID = try c.decode(UUID.self, forKey: .documentID)
         expandedDocumentID = try c.decodeIfPresent(UUID.self, forKey: .expandedDocumentID)
         isEnabled = try c.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        reveal = try c.decodeIfPresent(Reveal.self, forKey: .reveal) ?? .onApproach
         expandOnHover = try c.decodeIfPresent(Bool.self, forKey: .expandOnHover) ?? true
         refresh = max(try c.decodeIfPresent(TimeInterval.self, forKey: .refresh)
                       ?? Island.defaultRefresh, Island.refreshFloor)

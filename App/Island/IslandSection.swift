@@ -45,13 +45,29 @@ struct IslandSection: View {
                     Toggle("", isOn: Binding(get: { island.isEnabled },
                                              set: { on in edit { $0.isEnabled = on } }))
                         .labelsHidden().toggleStyle(.switch).controlSize(.mini)
-                    Text(island.isEnabled ? "On the notch" : "Off")
+                    Text(island.isEnabled
+                         ? (island.reveal == .always ? "On the notch" : "At the notch, on approach")
+                         : "Off")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Palette.text)
                     Spacer()
                     Button { controller.clear() } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.borderless).foregroundStyle(Palette.textDim)
                 }
+
+                InspectorRow(label: "Shows") {
+                    Picker("", selection: Binding(get: { island.reveal },
+                                                  set: { r in edit { $0.reveal = r } })) {
+                        ForEach(Island.Reveal.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                }
+                Text(island.reveal.explanation)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Palette.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 InspectorRow(label: "Expands to") {
                     Picker("", selection: Binding(
