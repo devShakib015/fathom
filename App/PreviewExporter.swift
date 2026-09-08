@@ -24,7 +24,7 @@ enum PreviewExporter {
             WidgetCanvas(doc: doc, data: data)
         }
         .frame(width: size.width, height: size.height)
-        .clipShape(RoundedRectangle(cornerRadius: size.width / 9, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: WidgetDoc.Family.cornerRadius, style: .continuous))
         .environment(\.colorScheme, .dark)
 
         let renderer = ImageRenderer(content: view)

@@ -43,12 +43,16 @@ struct RootView: View {
     /// Group entitlement did not survive signing, every widget on the machine
     /// silently renders its fallbacks and nothing anywhere reports an error.
     private var containerFooter: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        // What the app can see is not what the extension can see — an ad-hoc
+        // signature lets the app through and stops the extension. This row is
+        // the app's own view; the widget face reports its own.
+        let storage = StoreDiagnosis.current()
+        return VStack(alignment: .leading, spacing: 4) {
             Divider().overlay(Palette.hairline)
             HStack(spacing: 6) {
-                Image(systemName: AppGroup.container == nil ? "exclamationmark.triangle.fill" : "checkmark.seal.fill")
-                    .foregroundStyle(AppGroup.container == nil ? .orange : Palette.accent)
-                Text(AppGroup.container == nil ? "Shared container missing" : "Shared container ready")
+                Image(systemName: storage.usable ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(storage.usable ? Palette.accent : .orange)
+                Text(storage.summary)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Palette.textDim)
             }

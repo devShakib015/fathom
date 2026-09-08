@@ -41,9 +41,9 @@ struct WidgetStage: View {
         .frame(width: size.width, height: size.height)
         // Widgets are 2/9 of their width on macOS Tahoe; matching it makes the
         // preview a size reference as well as a content one.
-        .clipShape(RoundedRectangle(cornerRadius: size.width * 2 / 9 * 0.5, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: WidgetDoc.Family.cornerRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: size.width * 2 / 9 * 0.5, style: .continuous)
+            RoundedRectangle(cornerRadius: WidgetDoc.Family.cornerRadius, style: .continuous)
                 .stroke(.white.opacity(0.07), lineWidth: 1))
         .shadow(color: .black.opacity(0.45), radius: 22, y: 10)
     }

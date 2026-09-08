@@ -101,17 +101,27 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
             }
         }
 
-        /// Nominal point size. The renderer never trusts this for layout — it
-        /// uses the real geometry it is given — but font sizes are authored
-        /// against it, and the editor canvas needs an aspect ratio.
+        /// The point size macOS 26 actually uses, read out of WidgetKit's own
+        /// timeline cache filenames rather than guessed:
+        /// `~/Library/Containers/<ext>/Data/SystemData/com.apple.chrono/timelines/`
+        /// names each file `systemSmall----164.00w-164.00h-27.88r-…`.
+        ///
+        /// The renderer never trusts this for layout — it uses the real
+        /// geometry it is handed — but font sizes are authored against it, and
+        /// the editor canvas needs the right aspect ratio. Note that `large`
+        /// is square on macOS, not portrait as it is on iOS.
         var referenceSize: CGSize {
             switch self {
-            case .small: CGSize(width: 170, height: 170)
-            case .medium: CGSize(width: 364, height: 170)
-            case .large: CGSize(width: 364, height: 382)
-            case .extraLarge: CGSize(width: 742, height: 382)
+            case .small: CGSize(width: 164, height: 164)
+            case .medium: CGSize(width: 344, height: 164)
+            case .large: CGSize(width: 344, height: 344)
+            case .extraLarge: CGSize(width: 704, height: 344)
             }
         }
+
+        /// macOS 26 rounds every widget to the same radius regardless of size,
+        /// which is why the preview cannot derive it from the width.
+        static let cornerRadius: Double = 27.88
     }
 }
 

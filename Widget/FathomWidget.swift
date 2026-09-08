@@ -14,6 +14,14 @@ struct DocumentEntry: TimelineEntry {
     let date: Date
     let doc: WidgetDoc?
     let data: ResolvedData
+    /// Which provider callback produced this entry. WidgetKit will happily
+    /// show a placeholder forever if `getTimeline` never calls back, and the
+    /// two states are indistinguishable on screen without this.
+    var family: WidgetDoc.Family = .small
+    var origin: String = "?"
+    var diagnosis: StoreDiagnosis = StoreDiagnosis(urlResolves: false, readable: false,
+                                                   writable: false, documentCount: 0,
+                                                   familiesPresent: [], containerPath: "not checked")
 }
 
 struct DocumentProvider: TimelineProvider {
@@ -26,51 +34,84 @@ struct DocumentProvider: TimelineProvider {
     private static let log = Logger(subsystem: "com.devshakib.fathom", category: "timeline")
 
     func placeholder(in context: Context) -> DocumentEntry {
-        let doc = DocumentStore.shared.activeDocument(for: family) ?? fallbackDocument
-        return DocumentEntry(date: Date(), doc: doc, data: ResolvedData())
+        let diagnosis = StoreDiagnosis.current()
+        ExtensionTrace.write("placeholder family=\(family.rawValue) \(diagnosis.summary)")
+        return DocumentEntry(date: Date(),
+                             doc: DocumentStore.shared.activeDocument(for: family),
+                             data: ResolvedData(),
+                             family: family, origin: "placeholder",
+                             diagnosis: diagnosis)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (DocumentEntry) -> Void) {
-        Task {
-            let doc = DocumentStore.shared.activeDocument(for: family)
-            // The gallery snapshot must not wait on somebody's endpoint, so
-            // system values only. A widget being previewed at 3 KB/s should
-            // still show its layout instantly.
-            let data = doc.map { context.isPreview ? previewData(for: $0) : ResolvedData() } ?? ResolvedData()
-            completion(DocumentEntry(date: Date(), doc: doc ?? fallbackDocument, data: data))
-        }
+        let diagnosis = StoreDiagnosis.current()
+        let doc = DocumentStore.shared.activeDocument(for: family)
+        ExtensionTrace.write("snapshot family=\(family.rawValue) doc=\(doc?.name ?? "none") \(diagnosis.summary)")
+        // The gallery snapshot must not wait on somebody's endpoint, so system
+        // values only, resolved synchronously. A widget being previewed on a
+        // slow connection should still show its layout instantly.
+        let data = doc.map { previewData(for: $0) } ?? ResolvedData()
+        completion(DocumentEntry(date: Date(), doc: doc, data: data,
+                                 family: family, origin: "snapshot", diagnosis: diagnosis))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<DocumentEntry>) -> Void) {
-        Task {
-            let now = Date()
-            guard let doc = DocumentStore.shared.activeDocument(for: family) else {
-                // Nothing designed for this family yet. Still schedule a
-                // reload, otherwise placing a widget before building one
-                // leaves it permanently blank.
-                Self.log.notice("reload family=\(family.rawValue, privacy: .public) doc=none")
-                let entry = DocumentEntry(date: now, doc: nil, data: ResolvedData())
-                completion(Timeline(entries: [entry],
-                                    policy: .after(now.addingTimeInterval(WidgetDoc.refreshFloor))))
-                return
+        let now = Date()
+        let diagnosis = StoreDiagnosis.current()
+        let doc = DocumentStore.shared.activeDocument(for: family)
+        ExtensionTrace.write("timeline family=\(family.rawValue) doc=\(doc?.name ?? "none") \(diagnosis.summary)")
+
+        func finish(_ entry: DocumentEntry, refresh: TimeInterval) {
+            completion(Timeline(entries: [entry], policy: .after(now.addingTimeInterval(refresh))))
+        }
+
+        guard let doc else {
+            // Nothing designed for this family yet. Still schedule a reload,
+            // otherwise placing a widget before building one leaves it blank
+            // permanently rather than until the next tick.
+            finish(DocumentEntry(date: now, doc: nil, data: ResolvedData(),
+                                 family: family, origin: "timeline", diagnosis: diagnosis),
+                   refresh: WidgetDoc.refreshFloor)
+            return
+        }
+
+        let refresh = max(doc.minimumRefresh, WidgetDoc.refreshFloor)
+
+        // A document with no network source needs no concurrency, and going
+        // async anyway would mean returning from `getTimeline` before calling
+        // back — which is the one shape where WidgetKit can keep showing the
+        // placeholder forever with nothing to say why.
+        if doc.sources.allSatisfy({ $0.kind == .system }) {
+            var data = ResolvedData(capturedAt: now)
+            for source in doc.sources {
+                data.trees[source.id] = SystemSource.snapshot(now: now)
             }
+            trace(doc, data)
+            finish(DocumentEntry(date: now, doc: doc, data: data,
+                                 family: family, origin: "timeline", diagnosis: diagnosis),
+                   refresh: refresh)
+            return
+        }
 
+        Task {
             let data = await DataResolver.resolve(doc, now: now)
-            let entry = DocumentEntry(date: now, doc: doc, data: data)
-
-            let rendered = doc.elements
-                .filter { $0.binding != nil }
-                .map { "\($0.displayName)=\(data.text(for: $0))" }
-                .joined(separator: " ")
-            Self.log.notice("reload family=\(family.rawValue, privacy: .public) doc=\(doc.name, privacy: .public) elements=\(doc.elements.count) stale=\(data.isStale) values=[\(rendered, privacy: .public)]")
-
+            trace(doc, data)
             // One entry per reload rather than a pre-computed run of them.
             // Pre-computing is the standard iOS workaround for a reload budget;
             // on macOS the floor is 64 seconds and does not decay, so asking
             // again is both allowed and more accurate than guessing the future.
-            let next = now.addingTimeInterval(max(doc.minimumRefresh, WidgetDoc.refreshFloor))
-            completion(Timeline(entries: [entry], policy: .after(next)))
+            finish(DocumentEntry(date: now, doc: doc, data: data,
+                                 family: family, origin: "timeline", diagnosis: diagnosis),
+                   refresh: refresh)
         }
+    }
+
+    private func trace(_ doc: WidgetDoc, _ data: ResolvedData) {
+        let rendered = doc.elements
+            .filter { $0.binding != nil }
+            .map { "\($0.displayName)=\(data.text(for: $0))" }
+            .joined(separator: " ")
+        ExtensionTrace.write("rendered family=\(family.rawValue) doc=\(doc.name) stale=\(data.isStale) [\(rendered)]")
     }
 
     private func previewData(for doc: WidgetDoc) -> ResolvedData {
@@ -93,32 +134,57 @@ struct DocumentWidgetView: View {
                 WidgetCanvas(doc: doc, data: entry.data)
                     .fathomWidgetBackground(doc.background)
             } else {
-                EmptyStateView()
+                EmptyStateView(family: entry.family, diagnosis: entry.diagnosis, origin: entry.origin)
                     .containerBackground(.fill.tertiary, for: .widget)
             }
         }
     }
 }
 
-/// What a placed widget shows before anything has been designed for its size.
-/// Says which size is missing, because "open Fathom" on its own leaves the
-/// user hunting for why their other widget worked and this one did not.
+/// What a placed widget shows when it has nothing to draw — and, crucially,
+/// why.
+///
+/// A widget extension has no console and no usable debugger (trap 4), and on
+/// this machine the unified log returns nothing at all. So the widget face is
+/// the diagnostic channel. "No widget yet" and "the App Group entitlement did
+/// not survive signing" are completely different problems that would otherwise
+/// look identical from across the room.
 struct EmptyStateView: View {
+    let family: WidgetDoc.Family
+    let diagnosis: StoreDiagnosis
+    let origin: String
+
+    private var brokenStorage: Bool { !diagnosis.usable }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Image(systemName: "square.dashed")
-                .font(.system(size: 20, weight: .light))
-                .foregroundStyle(Palette.accent)
-            Text("No widget yet")
-                .font(.system(size: 13, weight: .semibold))
+        VStack(alignment: .leading, spacing: 5) {
+            Image(systemName: brokenStorage ? "exclamationmark.triangle.fill" : "square.dashed")
+                .font(.system(size: 18, weight: .light))
+                .foregroundStyle(brokenStorage ? .orange : Palette.accent)
+
+            Text(brokenStorage ? "Shared storage unreachable" : "No \(family.displayName.lowercased()) widget yet")
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Palette.text)
-            Text("Design one in Fathom and it appears here.")
-                .font(.system(size: 10))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(diagnosis.headline)
+                .font(.system(size: 9))
                 .foregroundStyle(Palette.textDim)
                 .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+
+            // The state of the store as the extension sees it. Small and dim:
+            // it should be readable when you go looking and ignorable when you
+            // are not.
+            Text("\(origin) · \(diagnosis.summary)")
+                .font(.system(size: 8, design: .monospaced))
+                .foregroundStyle(Palette.textDim.opacity(0.65))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(12)
     }
 }
 
