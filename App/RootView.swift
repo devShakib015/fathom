@@ -16,6 +16,11 @@ struct RootView: View {
         }
         .background(Palette.background)
         .onChange(of: library.selection, initial: true) { _, _ in openSelected() }
+        // Refresh every document's thumbnail and resolved values once at
+        // launch, not just the selected one — the library grid will want them,
+        // and it is the only way to see that a document nobody has opened
+        // still resolves.
+        .task { await library.exportAllPreviews() }
     }
 
     /// One editing session per document. Rebuilt on selection so undo history

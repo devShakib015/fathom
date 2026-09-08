@@ -187,6 +187,47 @@ final class EditorModel {
         edit("Reorder") { $0.elements.move(fromOffsets: source, toOffset: destination) }
     }
 
+    // MARK: - Data sources
+
+    func addSource(_ source: DataSource) {
+        edit("Add source") { $0.sources.append(source) }
+    }
+
+    /// Removing a source unbinds anything pointing at it. Leaving dangling
+    /// bindings would mean elements that render their fallback forever with no
+    /// way to see why from the inspector.
+    func removeSource(_ id: UUID) {
+        edit("Remove source") { doc in
+            doc.sources.removeAll { $0.id == id }
+            for index in doc.elements.indices where doc.elements[index].binding?.sourceID == id {
+                doc.elements[index].binding = nil
+            }
+        }
+        Task { await resolve() }
+    }
+
+    /// Binds an element to a field the user picked out of the tree, guessing a
+    /// sensible format from the value's own type and the field's name.
+    func bind(element id: UUID, to keyPath: String, value: DataValue, source: UUID) {
+        guard let element = doc.elements.first(where: { $0.id == id }) else { return }
+        let format = Format.inferred(for: value, keyPath: keyPath, kind: element.kind)
+        edit("Bind \(keyPath)") { doc in
+            guard let index = doc.elements.firstIndex(where: { $0.id == id }) else { return }
+            doc.elements[index].binding = DataBinding(sourceID: source,
+                                                      keyPath: keyPath,
+                                                      format: format,
+                                                      fallback: Self.fallback(for: doc.elements[index].kind))
+        }
+    }
+
+    private static func fallback(for kind: Element.Kind) -> String {
+        switch kind {
+        case .arc, .spark: "0"
+        case .symbol: "questionmark"
+        default: "—"
+        }
+    }
+
     // MARK: - Geometry
 
     func snap(_ value: Double) -> Double {

@@ -168,6 +168,7 @@ private struct ElementHandle: View {
     /// Whether the current press has travelled far enough to be a move. A
     /// press that never does is a click.
     @State private var isMoving = false
+    @State private var isDropTarget = false
 
     var body: some View {
         Rectangle()
@@ -183,6 +184,24 @@ private struct ElementHandle: View {
             .overlay(alignment: .bottomLeading) { handle(.bottomLeading) }
             .overlay(alignment: .bottomTrailing) { handle(.bottomTrailing) }
             .gesture(pressGesture)
+            // A field dragged out of the tree browser can be dropped straight
+            // onto the element it should feed, which is the shortest path from
+            // "what does this endpoint return" to "my widget shows it".
+            .dropDestination(for: String.self) { paths, _ in
+                guard let keyPath = paths.first,
+                      let source = model.doc.sources.first(where: { $0.kind == .json }),
+                      let value = model.data.trees[source.id]?[path: keyPath]
+                else { return false }
+                model.bind(element: element.id, to: keyPath, value: value, source: source.id)
+                model.select(element.id)
+                return true
+            } isTargeted: { targeted in
+                isDropTarget = targeted
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 3)
+                    .stroke(Palette.accentAlt, lineWidth: isDropTarget ? 2 : 0)
+            )
     }
 
     // MARK: - Click or move

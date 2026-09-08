@@ -71,7 +71,7 @@ indirect enum DataValue: Hashable, Sendable {
         switch self {
         case .date(let v): v
         case .number(let v): Date(timeIntervalSince1970: v)
-        case .string(let v): DataValue.isoParsers.lazy.compactMap { $0.date(from: v) }.first
+        case .string(let v): DataValue.dateParsers.lazy.compactMap { $0(v) }.first
         default: nil
         }
     }
@@ -112,17 +112,39 @@ indirect enum DataValue: Hashable, Sendable {
         }
     }
 
-    private static let isoParsers: [ISO8601DateFormatter] = {
-        let withFraction = ISO8601DateFormatter()
-        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        // Endpoints routinely omit the zone: "2026-09-08T18:42" is common.
-        let local = ISO8601DateFormatter()
-        local.formatOptions = [.withFullDate, .withDashSeparatorInDate,
-                               .withTime, .withColonSeparatorInTime]
-        local.timeZone = .current
-        return [withFraction, plain, local]
+    /// Date formats seen in the wild, tried in order.
+    ///
+    /// `ISO8601DateFormatter` alone is not enough: it insists on seconds, and
+    /// minute-precision timestamps are what real endpoints actually send —
+    /// Open-Meteo returns `"2026-09-08T17:30"` for the current observation.
+    /// Parsing that as text rather than a date would make the most obvious
+    /// binding anybody tries render as a raw string.
+    ///
+    /// Every fallback formatter is POSIX-locale and fixed-format, because a
+    /// user's regional settings must not change whether an endpoint parses.
+    private static let dateParsers: [(String) -> Date?] = {
+        func iso(_ options: ISO8601DateFormatter.Options) -> (String) -> Date? {
+            let f = ISO8601DateFormatter()
+            f.formatOptions = options
+            return { f.date(from: $0) }
+        }
+        func fixed(_ format: String) -> (String) -> Date? {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.timeZone = .current
+            f.dateFormat = format
+            return { f.date(from: $0) }
+        }
+        return [
+            iso([.withInternetDateTime, .withFractionalSeconds]),
+            iso([.withInternetDateTime]),
+            fixed("yyyy-MM-dd'T'HH:mm:ssZZZZZ"),
+            fixed("yyyy-MM-dd'T'HH:mm:ss"),
+            fixed("yyyy-MM-dd'T'HH:mm"),
+            fixed("yyyy-MM-dd HH:mm:ss"),
+            fixed("yyyy-MM-dd HH:mm"),
+            fixed("yyyy-MM-dd"),
+        ]
     }()
 }
 

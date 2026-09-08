@@ -5,16 +5,49 @@ import SwiftUI
 struct InspectorView: View {
     @Bindable var model: EditorModel
 
+    /// Two tabs rather than one long column.
+    ///
+    /// Stacked, the fields tree sat below the element's own controls and fell
+    /// off the bottom of the panel the moment anything was selected — which
+    /// defeats the whole gesture, since binding means having a selected
+    /// element and a field list visible at the same time.
+    enum Tab: String, CaseIterable {
+        case design = "Design"
+        case data = "Data"
+    }
+
+    @State private var tab: Tab = .design
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if let element = model.focusedElement {
-                    ElementInspector(model: model, element: element)
-                } else {
-                    emptySelection
+        VStack(spacing: 0) {
+            Picker("", selection: $tab) {
+                ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+
+            Divider().overlay(Palette.hairline)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    switch tab {
+                    case .design:
+                        if let element = model.focusedElement {
+                            ElementInspector(model: model, element: element)
+                        } else {
+                            emptySelection
+                        }
+                        Divider().overlay(Palette.hairline)
+                        DocumentInspector(model: model)
+                    case .data:
+                        SourcesInspector(model: model) { elementID, keyPath, value in
+                            guard let source = model.doc.sources.first(where: { $0.kind == .json }) else { return }
+                            model.bind(element: elementID, to: keyPath, value: value, source: source.id)
+                        }
+                    }
                 }
-                Divider().overlay(Palette.hairline)
-                DocumentInspector(model: model)
             }
         }
         .background(Palette.background)

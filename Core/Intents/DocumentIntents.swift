@@ -14,16 +14,26 @@ import WidgetKit
 // only same-size designs needs one entity, one query and one intent per
 // family. All four delegate to `DocumentCatalog`, which holds the only copy of
 // the actual logic.
+//
+// These live in Core, compiled into *both* targets, rather than in the widget
+// extension where they are used. A widget's configuration intent is resolved
+// through the containing app's App Intents metadata, and with these files in
+// the extension alone the app shipped no `Metadata.appintents` at all: the
+// system asked the provider for placeholders forever, never called the entity
+// queries, and never requested a timeline. Nothing logged an error — the
+// widgets simply sat on their placeholder.
 
 /// The shared half: reading documents of one family out of the store.
 enum DocumentCatalog {
     static func all(_ family: WidgetDoc.Family) -> [(id: UUID, name: String)] {
-        DocumentStore.shared.allDocuments()
+        ExtensionTrace.write("query.all family=\(family.rawValue)")
+        return DocumentStore.shared.allDocuments()
             .filter { $0.family == family }
             .map { (id: $0.id, name: $0.name) }
     }
 
     static func named(_ ids: [UUID], family: WidgetDoc.Family) -> [(id: UUID, name: String)] {
+        ExtensionTrace.write("query.named family=\(family.rawValue) n=\(ids.count)")
         let wanted = Set(ids)
         return all(family).filter { wanted.contains($0.id) }
     }
@@ -33,6 +43,7 @@ enum DocumentCatalog {
     /// than rendering empty means a widget dragged out before it is configured
     /// still shows something, which is how every other widget on macOS behaves.
     static func document(selected: UUID?, family: WidgetDoc.Family) -> WidgetDoc? {
+        ExtensionTrace.write("catalog.document family=\(family.rawValue) selected=\(selected?.uuidString.prefix(8).description ?? "nil")")
         if let selected, let doc = DocumentStore.shared.document(id: selected), doc.family == family {
             return doc
         }

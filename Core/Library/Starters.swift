@@ -8,7 +8,7 @@ import Foundation
 /// the moment somebody opened it to see how it was made.
 enum Starters {
 
-    static var all: [WidgetDoc] { [systemSmall, refreshFloorMedium] }
+    static var all: [WidgetDoc] { [systemSmall, refreshFloorMedium, weatherMedium] }
 
     /// Stable ids so that reinstalling Fathom updates the starters in place
     /// rather than duplicating them beside the user's edited copies.
@@ -270,5 +270,99 @@ enum Starters {
                         text: "shape · symbol · text · divider · arc · spark"),
             ],
             sources: [source])
+    }
+
+    // MARK: - Weather, medium
+
+    /// The one that makes the reload finding visible.
+    ///
+    /// A live endpoint, refreshed on the 64-second floor, showing numbers that
+    /// are never more than a minute old. Every iOS widget builder shows this
+    /// same data hours stale, and not because they built it badly.
+    ///
+    /// The coordinates are Dubai because they have to be something; the URL is
+    /// an ordinary editable field, and changing `latitude`/`longitude` is the
+    /// first thing anyone will do. Open-Meteo needs no key and no account,
+    /// which is why it is the one endpoint worth shipping pointed at.
+    static var weatherMedium: WidgetDoc {
+        let system = systemSource()
+        let weather = DataSource(
+            id: UUID(uuidString: "5B1F0F1A-0000-4000-A000-000000000002")!,
+            name: "Open-Meteo",
+            kind: .json,
+            url: "https://api.open-meteo.com/v1/forecast?latitude=25.2048&longitude=55.2708"
+               + "&current=temperature_2m,relative_humidity_2m&daily=temperature_2m_max"
+               + "&forecast_days=7&timezone=auto")
+
+        return WidgetDoc(
+            id: UUID(uuidString: "5B1F0F1A-0000-4000-A000-0000000000A3")!,
+            name: "Weather",
+            family: .medium,
+            background: .glass,
+            elements: [
+                Element(name: "Icon", kind: .symbol,
+                        frame: Frame(x: 0.045, y: 0.19, width: 0.095, height: 0.25),
+                        style: Style(font: FontSpec(size: 18, weight: .regular),
+                                     foreground: .accent, alignment: .center),
+                        text: "thermometer.medium"),
+
+                Element(name: "Temperature", kind: .text,
+                        frame: Frame(x: 0.165, y: 0.11, width: 0.33, height: 0.35),
+                        style: Style(font: FontSpec(size: 40, weight: .semibold, design: .rounded),
+                                     foreground: .text),
+                        text: "36.7°",
+                        binding: DataBinding(sourceID: weather.id,
+                                             keyPath: "current.temperature_2m",
+                                             format: Format(kind: .number, precision: 1, suffix: "°"),
+                                             fallback: "—")),
+
+                Element(name: "Place", kind: .text,
+                        frame: Frame(x: 0.17, y: 0.50, width: 0.33, height: 0.14),
+                        style: Style(font: FontSpec(size: 12, weight: .medium), foreground: .dim),
+                        text: "Dubai"),
+
+                Element(name: "Observed", kind: .text,
+                        frame: Frame(x: 0.17, y: 0.655, width: 0.33, height: 0.13),
+                        style: Style(font: FontSpec(size: 10), foreground: .dim),
+                        text: "at 17:30",
+                        binding: DataBinding(sourceID: weather.id,
+                                             keyPath: "current.time",
+                                             format: Format(kind: .date, dateStyle: .time, prefix: "at "),
+                                             fallback: "offline")),
+
+                Element(name: "Rule", kind: .divider,
+                        frame: Frame(x: 0.515, y: 0.18, width: 0.012, height: 0.64),
+                        style: Style(foreground: ColorSpec(Palette.textDimHex, opacity: 0.25),
+                                     lineWidth: 1)),
+
+                Element(name: "Week ahead", kind: .spark,
+                        frame: Frame(x: 0.565, y: 0.17, width: 0.39, height: 0.30),
+                        style: Style(foreground: ColorSpec(Palette.accentAltHex),
+                                     fill: ColorSpec(Palette.accentAltHex, opacity: 0.28),
+                                     lineWidth: 5),
+                        text: "0",
+                        binding: DataBinding(sourceID: weather.id,
+                                             keyPath: "daily.temperature_2m_max",
+                                             format: Format(kind: .text),
+                                             fallback: "0")),
+
+                // Sits tight under the sparkline it names, with a clear gap
+                // before the humidity below. Evenly spaced, it read as a label
+                // for the wrong number.
+                Element(name: "Spark caption", kind: .text,
+                        frame: Frame(x: 0.57, y: 0.49, width: 0.39, height: 0.11),
+                        style: Style(font: FontSpec(size: 9, weight: .semibold), foreground: .dim),
+                        text: "SEVEN-DAY HIGH"),
+
+                Element(name: "Humidity", kind: .text,
+                        frame: Frame(x: 0.57, y: 0.675, width: 0.39, height: 0.15),
+                        style: Style(font: FontSpec(size: 12, weight: .medium), foreground: .text),
+                        text: "humidity 53%",
+                        binding: DataBinding(sourceID: weather.id,
+                                             keyPath: "current.relative_humidity_2m",
+                                             format: Format(kind: .percent, prefix: "humidity "),
+                                             fallback: "humidity —")),
+            ],
+            sources: [system, weather])
     }
 }
