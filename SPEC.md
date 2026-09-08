@@ -249,17 +249,21 @@ the same family.
 
 ---
 
-## 9. Questions for the owner, not for you to decide
+## 9. Answered by the owner, 8 Sep 2026
 
-1. **Arranger or builder?** Someone picking a library widget and recolouring it,
-   versus someone composing from primitives with data bindings. The brief above
-   assumes *both*, with the library as the on-ramp. Confirm before building the
-   editor, because the answer changes its weight by roughly 5×.
-2. **Does a widget need to be shareable?** Out of v1 above. If it is ever in,
-   the document format needs to be designed for it from the start.
-3. **How much of the JSON binding UI is v1?** "Paste a URL, see the tree, drag a
-   field onto an element" is the ambitious read. A hardcoded weather source is
-   the small one.
+All three came back at the ambitious end. These are now settled the same way
+section 2 is.
+
+1. **Arranger *and* builder, library as the on-ramp.** The canvas is freeform:
+   add, delete, move, resize and restyle any primitive, bind any field. The
+   eight library widgets exist to be opened and dissected, not just placed.
+2. **Design the format for sharing; do not ship sharing.** No import/export UI
+   in v1, but the document format carries `schemaVersion` from day one, is
+   stable JSON with string-valued enums, and declares every host it will
+   contact so a future importer can show them before anything is fetched.
+3. **Paste a URL, browse the parsed tree, drag a leaf onto an element.** The
+   full binding UI, including arrays and type-to-format inference. This is the
+   demo that makes the no-budget finding visible, so it is not the part to trim.
 
 ---
 
