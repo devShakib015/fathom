@@ -6,7 +6,7 @@ import Foundation
 /// and a widget that renders an empty string when the fetch failed looks
 /// broken rather than offline — which is a much worse thing for a widget
 /// sitting on someone's desktop to look like.
-struct Binding: Codable, Hashable {
+struct DataBinding: Codable, Hashable {
     var sourceID: UUID
     /// Dot path into the source's value tree. Array elements are indexed with
     /// brackets: `daily.temperature_2m_max[0]`, `list[2].main.temp`.

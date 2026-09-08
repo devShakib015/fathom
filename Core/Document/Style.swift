@@ -180,3 +180,24 @@ struct Style: Codable, Hashable {
         self.opacity = opacity
     }
 }
+
+// MARK: - Bridging back from SwiftUI
+
+extension ColorSpec {
+    /// Round-trips a colour picked in the inspector back into the document's
+    /// hex form. Converted through sRGB explicitly: `NSColor(Color)` can hand
+    /// back a catalog or display-P3 colour whose components are meaningless as
+    /// hex, and the widget would then render a different colour from the one
+    /// the user chose.
+    init(_ color: Color) {
+        let ns = NSColor(color).usingColorSpace(.sRGB) ?? NSColor.black
+        self.init(String(format: "#%02X%02X%02X",
+                         Int((ns.redComponent * 255).rounded()),
+                         Int((ns.greenComponent * 255).rounded()),
+                         Int((ns.blueComponent * 255).rounded())),
+                  opacity: ns.alphaComponent)
+    }
+
+    /// Opaque form, for a picker that manages opacity separately.
+    var opaqueColor: Color { Color(nsColor: nsColor) }
+}

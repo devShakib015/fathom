@@ -21,7 +21,7 @@ struct Element: Codable, Identifiable, Hashable {
     /// this is what the editor shows as a design-time preview.
     var text: String
     /// nil means the element shows `text` literally.
-    var binding: Binding?
+    var binding: DataBinding?
 
     init(id: UUID = UUID(),
          name: String? = nil,
@@ -29,7 +29,7 @@ struct Element: Codable, Identifiable, Hashable {
          frame: Frame,
          style: Style = Style(),
          text: String = "",
-         binding: Binding? = nil) {
+         binding: DataBinding? = nil) {
         self.id = id
         self.name = name
         self.kind = kind
@@ -76,5 +76,58 @@ struct Element: Codable, Identifiable, Hashable {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { return String(trimmed.prefix(24)) }
         return kind.displayName
+    }
+}
+
+// MARK: - Defaults
+
+extension Element {
+    /// A new element of `kind`, sized and styled so that it is visible and
+    /// sensible the moment it lands on the canvas.
+    ///
+    /// Dropping something invisible — a zero-width shape, white text on a
+    /// light background, an arc bound to nothing — is the fastest way to make
+    /// a builder feel broken, so every default here renders as *something*.
+    static func new(_ kind: Kind, in doc: WidgetDoc) -> Element {
+        // Placed slightly below and right of whatever is already there, so a
+        // run of additions fans out instead of stacking into one pile.
+        let offset = min(Double(doc.elements.count) * 0.03, 0.3)
+
+        switch kind {
+        case .text:
+            return Element(kind: .text,
+                           frame: Frame(x: 0.08, y: 0.08 + offset, width: 0.5, height: 0.14),
+                           style: Style(font: FontSpec(size: 18, weight: .semibold), foreground: .text),
+                           text: "Text")
+        case .symbol:
+            return Element(kind: .symbol,
+                           frame: Frame(x: 0.08, y: 0.08 + offset, width: 0.18, height: 0.18),
+                           style: Style(foreground: .accent, alignment: .center),
+                           text: "star.fill")
+        case .shape:
+            return Element(kind: .shape,
+                           frame: Frame(x: 0.08, y: 0.08 + offset, width: 0.4, height: 0.2),
+                           style: Style(fill: ColorSpec(Palette.accentHex, opacity: 0.18),
+                                        cornerRadius: 10))
+        case .divider:
+            return Element(kind: .divider,
+                           frame: Frame(x: 0.08, y: 0.10 + offset, width: 0.84, height: 0.02),
+                           style: Style(foreground: ColorSpec(Palette.textDimHex, opacity: 0.35),
+                                        lineWidth: 1))
+        case .arc:
+            return Element(kind: .arc,
+                           frame: Frame(x: 0.08, y: 0.08 + offset, width: 0.3, height: 0.3),
+                           style: Style(foreground: .accent,
+                                        fill: ColorSpec(Palette.accentHex, opacity: 0.16),
+                                        lineWidth: 6),
+                           text: "0.65")
+        case .spark:
+            return Element(kind: .spark,
+                           frame: Frame(x: 0.08, y: 0.08 + offset, width: 0.5, height: 0.22),
+                           style: Style(foreground: ColorSpec(Palette.accentAltHex),
+                                        fill: ColorSpec(Palette.accentAltHex, opacity: 0.3),
+                                        lineWidth: 6),
+                           text: "12,15,13,19,17,24,22,29")
+        }
     }
 }

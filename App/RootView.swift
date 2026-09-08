@@ -3,21 +3,26 @@ import WidgetKit
 
 struct RootView: View {
     @Environment(Library.self) private var library
-    @State private var data = ResolvedData()
-    @State private var isResolving = false
+    @State private var editor: EditorModel?
 
     var body: some View {
         @Bindable var library = library
 
         NavigationSplitView {
             sidebar
-                .navigationSplitViewColumnWidth(min: 220, ideal: 248, max: 300)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 224, max: 280)
         } detail: {
             detail
         }
         .background(Palette.background)
-        .task { await refresh(); await library.exportAllPreviews() }
-        .onChange(of: library.selection) { _, _ in Task { await refresh() } }
+        .onChange(of: library.selection, initial: true) { _, _ in openSelected() }
+    }
+
+    /// One editing session per document. Rebuilt on selection so undo history
+    /// belongs to the document it was made in rather than leaking between them.
+    private func openSelected() {
+        guard let doc = library.selected else { editor = nil; return }
+        if editor?.doc.id != doc.id { editor = EditorModel(doc: doc) }
     }
 
     // MARK: - Sidebar
@@ -25,27 +30,48 @@ struct RootView: View {
     private var sidebar: some View {
         @Bindable var library = library
 
-        return List(selection: $library.selection) {
-            Section("Widgets") {
-                ForEach(library.documents) { doc in
-                    DocumentRow(doc: doc, isActive: library.activeID(for: doc.family) == doc.id)
-                        .tag(doc.id)
+        return VStack(spacing: 0) {
+            List(selection: $library.selection) {
+                Section("Widgets") {
+                    ForEach(library.documents) { doc in
+                        DocumentRow(doc: doc, isActive: library.activeID(for: doc.family) == doc.id)
+                            .tag(doc.id)
+                            .contextMenu {
+                                Button("Duplicate") { library.duplicate(doc) }
+                                Button("Show on desktop") { library.makeActive(doc) }
+                                Divider()
+                                Button("Delete", role: .destructive) { library.delete(doc) }
+                            }
+                    }
                 }
             }
+            .listStyle(.sidebar)
+
+            Divider().overlay(Palette.hairline)
+            newButton
+            containerFooter
         }
-        .listStyle(.sidebar)
-        .safeAreaInset(edge: .bottom) { containerFooter }
     }
 
-    /// The shared container path, in the window rather than in a log.
-    ///
-    /// This is the single most useful thing to be able to see: if the App
-    /// Group entitlement did not survive signing, every widget on the machine
-    /// silently renders its fallbacks and nothing anywhere reports an error.
+    private var newButton: some View {
+        Menu {
+            ForEach(WidgetDoc.Family.allCases, id: \.self) { family in
+                Button(family.displayName) { library.create(family: family) }
+            }
+        } label: {
+            Label("New widget", systemImage: "plus")
+                .font(.system(size: 11, weight: .medium))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .menuStyle(.borderlessButton)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    /// Whether the shared store is genuinely usable, not merely resolvable.
+    /// If this ever says otherwise, every widget on the machine is rendering
+    /// fallbacks and nothing else on the system will mention it.
     private var containerFooter: some View {
-        // What the app can see is not what the extension can see — an ad-hoc
-        // signature lets the app through and stops the extension. This row is
-        // the app's own view; the widget face reports its own.
         let storage = StoreDiagnosis.current()
         return VStack(alignment: .leading, spacing: 4) {
             Divider().overlay(Palette.hairline)
@@ -53,13 +79,14 @@ struct RootView: View {
                 Image(systemName: storage.usable ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
                     .foregroundStyle(storage.usable ? Palette.accent : .orange)
                 Text(storage.summary)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Palette.textDim)
+                    .lineLimit(1)
             }
-            Text(library.containerPath)
+            Text(storage.containerPath)
                 .font(.system(size: 9, design: .monospaced))
-                .foregroundStyle(Palette.textDim.opacity(0.7))
-                .lineLimit(2)
+                .foregroundStyle(Palette.textDim.opacity(0.65))
+                .lineLimit(1)
                 .truncationMode(.middle)
                 .textSelection(.enabled)
         }
@@ -72,57 +99,53 @@ struct RootView: View {
 
     @ViewBuilder
     private var detail: some View {
-        if let doc = library.selected {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 26) {
-                    header(doc)
-                    WidgetStage(doc: doc, data: data)
-                    FactsPanel(doc: doc, data: data, isResolving: isResolving)
-                }
-                .padding(32)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        if let editor {
+            VStack(spacing: 0) {
+                header(editor)
+                Divider().overlay(Palette.hairline)
+                EditorView(model: editor)
             }
             .background(Palette.background)
         } else {
-            ContentUnavailableView("No widgets yet",
+            ContentUnavailableView("No widget selected",
                                    systemImage: "square.dashed",
-                                   description: Text("Fathom could not read the shared container."))
+                                   description: Text("Pick one on the left, or make a new one."))
                 .background(Palette.background)
         }
     }
 
-    private func header(_ doc: WidgetDoc) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(doc.name)
-                    .font(.system(size: 26, weight: .semibold))
+    private func header(_ editor: EditorModel) -> some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(editor.doc.name)
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Palette.text)
-                Text("\(doc.family.displayName) · \(doc.elements.count) elements · refreshes every \(Int(doc.minimumRefresh)) s")
-                    .font(.system(size: 12))
+                Text(subtitle(editor))
+                    .font(.system(size: 11))
                     .foregroundStyle(Palette.textDim)
             }
             Spacer()
-            Button {
-                Task { await refresh() }
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
+            if editor.isResolving { ProgressView().controlSize(.small) }
+            Button { Task { await editor.resolve() } } label: {
+                Label("Refresh data", systemImage: "arrow.clockwise")
             }
             Button {
-                library.makeActive(doc)
+                library.makeActive(editor.doc)
+                editor.pushToDesktop()
             } label: {
                 Label("Show on desktop", systemImage: "menubar.dock.rectangle")
             }
             .buttonStyle(.borderedProminent)
             .tint(Palette.accent)
         }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 13)
     }
 
-    private func refresh() async {
-        guard let doc = library.selected else { return }
-        isResolving = true
-        data = await DataResolver.resolve(doc)
-        isResolving = false
-        PreviewExporter.write(doc, data: data)
+    private func subtitle(_ editor: EditorModel) -> String {
+        let hosts = editor.doc.declaredHosts
+        let network = hosts.isEmpty ? "no network" : hosts.joined(separator: ", ")
+        return "\(editor.doc.family.displayName) · \(editor.doc.elements.count) elements · \(network)"
     }
 }
 
@@ -138,6 +161,7 @@ private struct DocumentRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(doc.name)
                     .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
                 Text(doc.family.displayName)
                     .font(.system(size: 10))
                     .foregroundStyle(Palette.textDim)
@@ -147,7 +171,7 @@ private struct DocumentRow: View {
                 Circle()
                     .fill(Palette.accent)
                     .frame(width: 6, height: 6)
-                    .help("Currently placed for this size")
+                    .help("The default for this size")
             }
         }
         .padding(.vertical, 2)
@@ -157,7 +181,7 @@ private struct DocumentRow: View {
         switch doc.family {
         case .small: "square"
         case .medium: "rectangle"
-        case .large: "rectangle.portrait"
+        case .large: "square.grid.2x2"
         case .extraLarge: "rectangle.split.2x1"
         }
     }

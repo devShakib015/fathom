@@ -11,7 +11,7 @@ struct ResolvedData: Hashable, Sendable {
     var isStale: Bool = false
     var capturedAt: Date = .distantPast
 
-    func value(for binding: Binding) -> DataValue? {
+    func value(for binding: DataBinding) -> DataValue? {
         trees[binding.sourceID]?[path: binding.keyPath]
     }
 

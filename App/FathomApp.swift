@@ -9,12 +9,12 @@ struct FathomApp: App {
         Window("Fathom", id: "main") {
             RootView()
                 .environment(library)
-                .frame(minWidth: 900, minHeight: 580)
+                .frame(minWidth: 1080, minHeight: 640)
                 .preferredColorScheme(.dark)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
-        .defaultSize(width: 1040, height: 660)
+        .defaultSize(width: 1320, height: 800)
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
@@ -73,6 +73,35 @@ final class Library {
                 DocumentStore.shared.setActiveDocument(starter.id, for: starter.family)
             }
         }
+    }
+
+    // MARK: - Library management
+
+    @discardableResult
+    func create(family: WidgetDoc.Family) -> WidgetDoc {
+        let doc = WidgetDoc(name: "Untitled", family: family, sources: [DataSource.system()])
+        DocumentStore.shared.save(doc)
+        reload()
+        selection = doc.id
+        return doc
+    }
+
+    func duplicate(_ doc: WidgetDoc) {
+        var copy = doc
+        copy.id = UUID()
+        copy.name = "\(doc.name) copy"
+        DocumentStore.shared.save(copy)
+        reload()
+        selection = copy.id
+    }
+
+    func delete(_ doc: WidgetDoc) {
+        DocumentStore.shared.delete(id: doc.id)
+        if DocumentStore.shared.activeDocumentID(for: doc.family) == doc.id {
+            DocumentStore.shared.setActiveDocument(nil, for: doc.family)
+        }
+        reload()
+        DocumentStore.shared.reloadWidgets()
     }
 
     func makeActive(_ doc: WidgetDoc) {
