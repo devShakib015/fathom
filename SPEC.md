@@ -40,6 +40,20 @@ that floor exactly. **A budget makes the gap climb** as the allowance burns down
 this one does not move. It is a fixed minimum interval — about **58–72 reloads an
 hour against iOS's two**, and it does not decay.
 
+The probe kept running while Fathom was built, and at 1.31 hours and 83 reloads
+the strongest statement is the simplest one: **the longest interval in the entire
+run was 64.7 s.** A budget does not produce a tidy ceiling — it produces gaps that
+grow into minutes and then hours. Across the 72 intervals not disturbed by an app
+install, mean 63.99 s, sd 1.29 s, drift −0.73 s/hour.
+
+The disturbed intervals are worth their own line, because they point the other
+way. Installing and re-registering an app produced reloads at 4 s, 7 s and 11 s
+spacing — *faster* than the floor, not slower. So the 64 s figure is a minimum
+spacing on reloads a widget schedules for itself, not a cap on how many it may
+have. `WidgetCenter.reloadAllTimelines()` is served immediately. The editor can
+therefore push a change to the desktop the instant it is made, rather than making
+the user wait out a tick to see their own edit.
+
 The probe is at `~/Projects/Personal/widget-reload-probe` (its own git repo, no
 remote). `./analyse.sh` re-reads the log any time. **Re-run it before building
 anything that assumes the number**, and if it ever shows the gap widening, this
