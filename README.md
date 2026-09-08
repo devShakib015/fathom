@@ -16,6 +16,6 @@ no iOS widget builder can offer at any price.
 
 Fathom is what that finding is for.
 
-Swift and SwiftUI, macOS 26 Tahoe or later. Free, MIT, every feature, no paid
-tier. No telemetry, no accounts, no network calls except the ones your own
+Swift and SwiftUI, macOS 26 Tahoe or later. **Free forever — every feature, no
+paid tier, no Pro version**, the same promise Helm makes. No telemetry, no accounts, no network calls except the ones your own
 widget makes.
