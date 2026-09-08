@@ -439,6 +439,38 @@ One that does not work: **WeatherKit authenticates with the app's identity**, an
 an ad-hoc signature has no team. It is unavailable to an unsigned build. The
 JSON source pointed at Open-Meteo is the free path and needs no key.
 
+### 9.5 Third round, 8 Sep 2026 — more than widgets
+
+The owner: Fathom will host **menu bar widgets**, an **iOS-style island** near
+the notch, and further customisations. Desktop widgets are the first surface,
+not the whole product.
+
+The architecture takes this better than it has any right to. A surface is
+already just a box with a size: a document is elements in unit space, and the
+renderer only ever needs a box and a scale. So a menu bar item and an island are
+new `WidgetDoc.Family` cases with their own reference sizes, and `WidgetCanvas`,
+the binding system, the expression layer, every data source and the whole editor
+work unchanged. The catalog templates declare which families they suit, so they
+opt in rather than being retrofitted.
+
+What is genuinely new is the *host*. Neither surface is WidgetKit:
+
+- **Menu bar** is an `NSStatusItem` owned by the app, which means Fathom has to
+  keep running — a background agent with a Dock-icon-optional setting. It also
+  escapes the 64-second floor entirely, since nothing is asking WidgetKit for a
+  timeline; the app can refresh on whatever interval it likes. That deserves its
+  own measurement before any claim is made about it.
+- **The island** is a borderless, non-activating, always-on-top window placed
+  near the notch. macOS 26 offers no island API; this is a window Fathom draws
+  and positions itself.
+
+Two consequences worth writing down now. The 64-second finding is a fact about
+WidgetKit, not about Fathom — copy must not generalise it to surfaces the app
+drives itself. And the icon should not depict widgets, because widgets are about
+to be one surface among several.
+
+---
+
 ---
 
 ## 10. Context worth having
