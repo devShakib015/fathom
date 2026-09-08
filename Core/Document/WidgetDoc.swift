@@ -96,6 +96,10 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
         /// Overlays could be a host rather than a family precisely because they
         /// impose no shape; this does.
         case menuBar
+        /// A strip hanging under the notch. Compact by nature: it is glanced
+        /// at, not read, and it shares the menu bar's problem of a shape that
+        /// nothing square survives.
+        case island
 
         /// nil for surfaces WidgetKit knows nothing about.
         var widgetFamily: WidgetFamily? {
@@ -104,7 +108,7 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
             case .medium: .systemMedium
             case .large: .systemLarge
             case .extraLarge: .systemExtraLarge
-            case .menuBar: nil
+            case .menuBar, .island: nil
             }
         }
 
@@ -129,6 +133,7 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
             case .large: "Large"
             case .extraLarge: "Extra large"
             case .menuBar: "Menu bar"
+            case .island: "Island"
             }
         }
 
@@ -151,6 +156,9 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
             // guessed. The width is a starting point; a menu bar item can be
             // any width and says so.
             case .menuBar: CGSize(width: 160, height: 22)
+            // Wide enough for two values and a symbol, tall enough to read at
+            // a glance without covering anything.
+            case .island: CGSize(width: 240, height: 34)
             }
         }
 

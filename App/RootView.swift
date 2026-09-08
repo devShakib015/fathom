@@ -6,6 +6,7 @@ struct RootView: View {
     @Environment(OverlayController.self) private var overlays
     @Environment(RuleEngine.self) private var rules
     @Environment(MenuBarController.self) private var menuBar
+    @Environment(IslandController.self) private var island
     @State private var editor: EditorModel?
     @State private var destination: Destination = .editor
     @State private var importing: DocumentTransfer.Inspection?
@@ -55,6 +56,7 @@ struct RootView: View {
             if let new {
                 overlays.documentChanged(new.id)
                 menuBar.documentChanged(new.id)
+                island.documentChanged(new.id)
             }
         }
     }
@@ -339,6 +341,7 @@ private struct DocumentRow: View {
         case .large: "square.grid.2x2"
         case .extraLarge: "rectangle.split.2x1"
         case .menuBar: "menubar.rectangle"
+        case .island: "capsule"
         }
     }
 }

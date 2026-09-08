@@ -60,6 +60,7 @@ enum Templates {
         nextEvent, agendaList, remindersList,
         typographicTime, statPair,
         menuClock, menuVitals, menuBattery, menuWeather,
+        islandNow, islandPulse,
     ]
 
     // MARK: - Time
@@ -779,6 +780,56 @@ enum Templates {
                          colour: theme.dimSpec, align: .trailing, literal: "55%",
                          bind: Kit.percent(w.id, "current.relative_humidity_2m")),
             ], sources: [w])
+        }
+    }
+
+    // MARK: - Island
+    //
+    // 240 by 34, hanging under the notch. Read at a glance and from an angle,
+    // so: two values at most, generous type, nothing at the extreme edges where
+    // the rounded ends cut in.
+
+    static var islandNow: CatalogTemplate {
+        CatalogTemplate(id: "island-now", name: "Time and battery", category: .time,
+                        tags: ["island", "notch", "clock", "battery"],
+                        families: [.island], needs: [.system]) { theme, _ in
+            let s = system()
+            return WidgetDoc(name: "Time and battery", family: .island,
+                             background: Background(kind: .color, color: ColorSpec("#000000")),
+                             elements: [
+                Kit.text("Time", 0.09, 0.16, 0.34, 0.68, size: 15, weight: .semibold,
+                         design: .rounded, colour: theme.textSpec, literal: "18:42",
+                         bind: Kit.time(s.id)),
+                Kit.bar("Battery", 0.47, 0.40, 0.24, 0.20, colour: theme.accentSpec,
+                        track: theme.dim(0.3), gradient: theme.accentAltSpec,
+                        literal: "0.9", bind: Kit.percent(s.id, "battery.percent")),
+                Kit.text("Percent", 0.73, 0.18, 0.20, 0.64, size: 12, weight: .medium,
+                         design: .rounded, colour: theme.dimSpec, align: .trailing,
+                         literal: "90%", bind: Kit.percent(s.id, "battery.percent")),
+            ], sources: [s])
+        }
+    }
+
+    static var islandPulse: CatalogTemplate {
+        CatalogTemplate(id: "island-pulse", name: "Machine pulse", category: .system,
+                        tags: ["island", "notch", "cpu", "memory"],
+                        families: [.island], needs: [.system]) { theme, _ in
+            let s = system()
+            return WidgetDoc(name: "Machine pulse", family: .island,
+                             background: Background(kind: .color, color: ColorSpec("#000000")),
+                             elements: [
+                Kit.symbol("Chip", 0.08, 0.24, 0.09, 0.52, colour: theme.accentSpec,
+                           literal: "cpu"),
+                Kit.text("CPU", 0.20, 0.18, 0.20, 0.64, size: 13, weight: .semibold,
+                         design: .rounded, colour: theme.textSpec, literal: "43%",
+                         bind: Kit.percent(s.id, "cpu.usage")),
+                Kit.rule(0.44, 0.28, 0.006, 0.44, colour: theme.dim(0.4), width: 1),
+                Kit.symbol("Memory", 0.50, 0.24, 0.09, 0.52, colour: theme.accentAltSpec,
+                           literal: "memorychip"),
+                Kit.text("Memory", 0.62, 0.18, 0.20, 0.64, size: 13, weight: .semibold,
+                         design: .rounded, colour: theme.textSpec, literal: "76%",
+                         bind: Kit.percent(s.id, "memory.usedFraction")),
+            ], sources: [s])
         }
     }
 }

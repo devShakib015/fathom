@@ -8,7 +8,7 @@ import Foundation
 /// the moment somebody opened it to see how it was made.
 enum Starters {
 
-    static var all: [WidgetDoc] { [systemSmall, refreshFloorMedium, weatherMedium, vitalsMedium, weekAheadLarge, menuBarClock] }
+    static var all: [WidgetDoc] { [systemSmall, refreshFloorMedium, weatherMedium, vitalsMedium, weekAheadLarge, menuBarClock, islandNow] }
 
     /// Stable ids so that reinstalling Fathom updates the starters in place
     /// rather than duplicating them beside the user's edited copies.
@@ -601,6 +601,44 @@ enum Starters {
                         binding: DataBinding(sourceID: source.id, keyPath: "date.now",
                                              format: Format(kind: .date, dateStyle: .shortWeekday),
                                              fallback: "—")),
+            ],
+            sources: [source])
+    }
+
+    // MARK: - Island
+
+    /// Ships so the island is not an empty promise either.
+    static var islandNow: WidgetDoc {
+        let source = systemSource()
+        return WidgetDoc(
+            id: UUID(uuidString: "5B1F0F1A-0000-4000-A000-0000000000A7")!,
+            name: "Island",
+            family: .island,
+            background: Background(kind: .color, color: ColorSpec("#000000")),
+            elements: [
+                Element(name: "Time", kind: .text,
+                        frame: Frame(x: 0.09, y: 0.16, width: 0.34, height: 0.68),
+                        style: Style(font: FontSpec(size: 15, weight: .semibold, design: .rounded),
+                                     foreground: .text),
+                        text: "18:42",
+                        binding: DataBinding(sourceID: source.id, keyPath: "date.now",
+                                             format: Format(kind: .date, dateStyle: .time),
+                                             fallback: "--:--")),
+                Element(name: "Battery", kind: .bar,
+                        frame: Frame(x: 0.47, y: 0.40, width: 0.24, height: 0.20),
+                        style: Style(foreground: .accent,
+                                     fill: ColorSpec(Palette.textDimHex, opacity: 0.3),
+                                     gradientEnd: ColorSpec(Palette.accentAltHex)),
+                        text: "0.9",
+                        binding: DataBinding(sourceID: source.id, keyPath: "battery.percent",
+                                             format: Format(kind: .percent), fallback: "0")),
+                Element(name: "Percent", kind: .text,
+                        frame: Frame(x: 0.73, y: 0.18, width: 0.20, height: 0.64),
+                        style: Style(font: FontSpec(size: 12, weight: .medium, design: .rounded),
+                                     foreground: .dim, alignment: .trailing),
+                        text: "90%",
+                        binding: DataBinding(sourceID: source.id, keyPath: "battery.percent",
+                                             format: Format(kind: .percent), fallback: "—")),
             ],
             sources: [source])
     }

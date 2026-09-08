@@ -482,9 +482,15 @@ What is genuinely new is the *host*. Neither surface is WidgetKit:
   it is a `Family` rather than a host: nothing composed for a square reads in a
   band that tall. Four catalog layouts and one starter ship for it. Free of the
   64-second floor, like every surface Fathom drives itself.
-- **The island** is a borderless, non-activating, always-on-top window placed
-  near the notch. macOS 26 offers no island API; this is a window Fathom draws
-  and positions itself.
+- **The island** — **built 8 Sep.** A borderless, non-activating window at
+  status-bar level, centred and hanging flush under the menu bar. macOS 26
+  offers no island API; Fathom draws and positions it. The placement is measured
+  from `NSScreen.safeAreaInsets.top`, which is the notch on a Mac that has one
+  and zero on a Mac that does not — so a notched laptop and an external display
+  both land correctly with no special case. One island, not a list: it is a
+  place rather than a thing you can have several of, and overlays are the answer
+  when you want many. Compact by default, expanding to a second document on
+  hover.
 
 Two consequences worth writing down now. The 64-second finding is a fact about
 WidgetKit, not about Fathom — copy must not generalise it to surfaces the app
