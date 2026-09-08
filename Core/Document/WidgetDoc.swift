@@ -85,6 +85,7 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
             e.frame = $0.frame.normalised
             return e
         }
+        copy.sources = sources.map(\.migrated)
         return copy
     }
 

@@ -102,6 +102,24 @@ struct DataSource: Codable, Identifiable, Hashable {
             || url.contains("{lat}") || url.contains("{lon}") || url.contains("{lng}")
     }
 
+    /// The coordinates every weather starter and template shipped with before
+    /// location existed.
+    ///
+    /// Documents already saved in someone's library still carry them, so a
+    /// build that only fixes the templates leaves the actual widgets on the
+    /// actual desktop still reporting a city nobody in the conversation lives
+    /// in. The match is the exact shipped string and nothing looser: a user who
+    /// deliberately typed their own coordinates keeps them.
+    private static let shippedPlaceholder = "latitude=25.2048&longitude=55.2708"
+
+    var migrated: DataSource {
+        guard kind == .json, let url, url.contains(Self.shippedPlaceholder) else { return self }
+        var copy = self
+        copy.url = url.replacingOccurrences(of: Self.shippedPlaceholder,
+                                            with: "latitude={latitude}&longitude={longitude}")
+        return copy
+    }
+
     /// The host this source will contact, if any. Fathom shows these before a
     /// document is ever placed, which is the whole reason sharing is designed
     /// for now and shipped later: the moment a widget can be handed to someone

@@ -201,17 +201,26 @@ enum DataResolver {
                 }
 
             case .json:
-                // Location tokens resolve here rather than at edit time, so the
-                // stored document stays portable and the coordinates are never
-                // written into a file that might be shared.
+                // A location-dependent endpoint is not called until there is a
+                // real location to call it with. `Place.unknown` would fetch
+                // perfectly valid weather for Greenwich, and a plausible wrong
+                // answer is worse than a visible missing one — the user would
+                // have no way to tell the widget was not about them.
+                let place = PlaceStore.current
+                if source.usesLocation, !place.isAuthorised {
+                    out.failures[source.id] = "Needs location access"
+                    continue
+                }
+
+                // Tokens resolve here rather than at edit time, so the stored
+                // document stays portable and the coordinates are never written
+                // into a file that might be shared.
                 guard let raw = source.url,
-                      case let string = DataSource.fill(raw, with: PlaceStore.current),
+                      case let string = DataSource.fill(raw, with: place),
                       let url = URL(string: string),
                       url.scheme == "https" || url.scheme == "http"
                 else {
-                    out.failures[source.id] = source.usesLocation && !PlaceStore.current.isAuthorised
-                        ? "Needs location access"
-                        : "No valid URL"
+                    out.failures[source.id] = "No valid URL"
                     if let cached = SourceCache.read(source.id) {
                         out.trees[source.id] = cached
                         out.isStale = true

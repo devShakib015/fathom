@@ -108,11 +108,12 @@ struct SourcesInspector: View {
                 }
             }
 
-            HStack(spacing: 4) {
+            WrapLayout(spacing: 4, lineSpacing: 4) {
                 ForEach(DataSource.tokens, id: \.token) { entry in
                     Button { insert(entry.token) } label: {
                         Text(entry.token)
                             .font(.system(size: 9, design: .monospaced))
+                            .fixedSize()
                             .padding(.horizontal, 5).padding(.vertical, 2)
                             .background(Palette.hairline.opacity(0.5),
                                         in: RoundedRectangle(cornerRadius: 4))

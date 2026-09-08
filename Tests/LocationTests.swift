@@ -69,6 +69,27 @@ struct LocationTests {
         #expect(source.host == "example.com")
     }
 
+    @Test("a document saved before location gets its coordinates migrated")
+    func migration() {
+        // The widgets already on someone's desktop are the ones that matter;
+        // fixing only the templates would leave them pointed at Dubai forever.
+        let old = DataSource(name: "Open-Meteo", kind: .json,
+                             url: "https://api.open-meteo.com/v1/forecast?latitude=25.2048&longitude=55.2708&current=temperature_2m")
+        #expect(old.migrated.url ==
+                "https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current=temperature_2m")
+        #expect(old.migrated.usesLocation)
+    }
+
+    @Test("coordinates the user chose themselves are left alone")
+    func migrationIsNarrow() {
+        // Only the exact shipped placeholder is rewritten. Anything else is a
+        // decision somebody made.
+        let mine = DataSource(name: "Open-Meteo", kind: .json,
+                              url: "https://api.open-meteo.com/v1/forecast?latitude=23.8103&longitude=90.4125")
+        #expect(mine.migrated.url == mine.url)
+        #expect(!mine.migrated.usesLocation)
+    }
+
     @Test("the unknown place is marked unauthorised and still renders")
     func unknownPlace() {
         let place = Place.unknown
