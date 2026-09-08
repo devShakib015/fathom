@@ -31,10 +31,14 @@ system actually made.
 11:27:25  +64.1s
 ```
 
-**64.0 s ± 0.15, every interval, no decay. 72 reloads an hour.** macOS ignored
-the 15-second request and substituted its own floor, then honoured that floor
-exactly. A budget *degrades* — the gap widens as the allowance burns down. This
-does not. It is a fixed minimum interval, roughly **36× what iOS allows**.
+Over a full hour, 54 intervals: **min 63.9 s, max 64.7 s, mean 64.15 s.** The
+distribution has no tail at all — 51 gaps at 64 s, 3 at 65 s, nothing else. Split
+into quarters the medians are 64.1, 64.2, 64.1, 64.1.
+
+macOS ignored the 15-second request, substituted its own floor, and then honoured
+that floor exactly. **A budget makes the gap climb** as the allowance burns down;
+this one does not move. It is a fixed minimum interval — about **58–72 reloads an
+hour against iOS's two**, and it does not decay.
 
 The probe is at `~/Projects/Personal/widget-reload-probe` (its own git repo, no
 remote). `./analyse.sh` re-reads the log any time. **Re-run it before building
