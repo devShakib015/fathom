@@ -281,14 +281,31 @@ nothing here. Reverting to `StaticConfiguration` produced 33 timelines and 25
 renders within five minutes, from the same documents, on the same build of
 macOS.
 
-A second silence, same shape, worth recording beside it: the ten slot widgets
-were first written as one generic `SlotWidget<Identity>` with the `kind` string
-computed from the slot. It compiled and registered, and WidgetKit never asked it
-for a timeline either. Written out as ten concrete structs with literal `kind`
-strings — the shape that already worked — every one of them ran immediately and
-the existing placements survived untouched. **Whatever WidgetKit keys a widget
-on here, a concrete type with a literal kind satisfies it and a generic one does
-not.** Repetition that runs beats elegance that does not.
+A second silence, same shape — and a different cause, found later in the crash
+logs rather than reasoned about. The ten slot widgets were first written as one
+generic `SlotWidget<Identity>`. It compiled and registered, and WidgetKit never
+asked it for a timeline. Written out as ten concrete structs it ran immediately.
+
+The first explanation written here was that WidgetKit must key a widget on
+something a generic type does not satisfy. That was a guess, and it was wrong.
+`~/Library/Logs/DiagnosticReports/FathomWidget-*.ips` had the answer all along:
+
+```
+libswiftCore  _assertionFailure(_:_:file:line:flags:)
+WidgetKit     …
+FathomWidget  SlotWidget.body.getter
+SwiftUI       WidgetBodyAccessor.updateBody(of:changed:)
+```
+
+**A generic `Widget` trips an assertion inside WidgetKit when its body is
+evaluated.** The extension was not being ignored, it was crashing — repeatedly,
+on every attempt, which is why the log showed placeholders and nothing else.
+Zero crashes since the concrete version; zero for the app, ever.
+
+The lesson is not about generics. It is that an extension going quiet has a
+third possible cause besides "not registered" and "not asked", and the crash
+reports are the cheapest place to look. Trap 7's original silence was never
+checked against them either.
 
 Two things follow. Widgets placed under one configuration kind do not survive a
 switch to the other, so every attempt costs a re-add. And since Fathom ships

@@ -3,6 +3,7 @@ import WidgetKit
 
 struct RootView: View {
     @Environment(Library.self) private var library
+    @Environment(OverlayController.self) private var overlays
     @State private var editor: EditorModel?
     @State private var showingGallery = false
 
@@ -32,6 +33,11 @@ struct RootView: View {
         // and it is the only way to see that a document nobody has opened
         // still resolves.
         .task { await library.exportAllPreviews() }
+        // An edit has to reach the overlays too, or the canvas and the screen
+        // disagree until the next refresh.
+        .onChange(of: editor?.doc) { _, new in
+            if let new { overlays.documentChanged(new.id) }
+        }
     }
 
     /// One editing session per document. Rebuilt on selection so undo history

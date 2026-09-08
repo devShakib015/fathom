@@ -5,9 +5,17 @@ enum AboutWindow {
     static let id = "about"
 }
 
+/// Overlays are windows Fathom owns, so Fathom has to still be running for
+/// them to exist. Closing the editor is not quitting.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+}
+
 @main
 struct FathomApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var library = Library()
+    @State private var overlays = OverlayController()
     @Environment(\.openWindow) private var openWindow
 
     private func openAbout() { openWindow(id: AboutWindow.id) }
@@ -16,6 +24,8 @@ struct FathomApp: App {
         Window("Fathom", id: "main") {
             RootView()
                 .environment(library)
+                .environment(overlays)
+                .task { overlays.start() }
                 .frame(minWidth: 1080, minHeight: 640)
                 .preferredColorScheme(.dark)
         }
@@ -135,6 +145,9 @@ final class Library {
     }
 
     func delete(_ doc: WidgetDoc) {
+        // Overlays showing a deleted document would be windows nothing can
+        // fill, so they go with it.
+        OverlayStore.shared.removeAll(forDocument: doc.id)
         if let slot = DocumentStore.shared.slot(holding: doc.id) {
             DocumentStore.shared.setActiveDocument(nil, for: slot)
         }

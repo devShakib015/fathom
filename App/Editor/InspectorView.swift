@@ -41,6 +41,8 @@ struct InspectorView: View {
                         }
                         Divider().overlay(Palette.hairline)
                         DocumentInspector(model: model)
+                        Divider().overlay(Palette.hairline)
+                        OverlaysSection(doc: model.doc)
                     case .data:
                         SourcesInspector(model: model) { elementID, sourceID, keyPath, value in
                             model.bind(element: elementID, to: keyPath, value: value, source: sourceID)
