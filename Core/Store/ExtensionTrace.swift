@@ -67,7 +67,7 @@ struct StoreDiagnosis: Hashable, Sendable {
     var containerPath: String
 
     static func current() -> StoreDiagnosis {
-        guard let container = AppGroup.container else {
+        guard let container = SharedStore.container else {
             return StoreDiagnosis(urlResolves: false, readable: false, writable: false,
                                   documentCount: 0, familiesPresent: [],
                                   containerPath: "unresolved")

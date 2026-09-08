@@ -183,12 +183,12 @@ Two rules that will save you later:
 - **Every binding needs a `fallback`.** Networks fail and a widget that renders
   blank looks broken rather than offline.
 
-Persist documents somewhere both the app and the extension can read. **That
-means a real App Group** — see trap 3.
+Persist documents somewhere both the app and the extension can read. Not an
+App Group, however much it looks like the right answer — see trap 5.
 
 ---
 
-## 6. Four traps, each measured the hard way
+## 6. Six traps, each measured the hard way
 
 These came out of building the probe. Every one produced a green build and a
 silently broken result.
@@ -216,15 +216,59 @@ actually look at the output.
 Not the real home. So a `temporary-exception.files.home-relative-path` for
 `~/Library/…` never even applies, and anything you write lands in
 `~/Library/Containers/<ext-bundle-id>/Data/…` where the host app cannot see it.
-**Sharing state between the app and the extension requires an App Group** and
-there is no way around it.
+Sharing state between the app and the extension needs a surface outside both
+containers — but *not* an App Group, for the reason in trap 5.
+
+Within that container, `~/Library/Logs` is restricted too. The probe only wrote
+there because it carried a home-relative exception naming that exact directory;
+without one, use `Library/Application Support`.
 
 **4. Under the debugger, WidgetKit applies no limits at all.** Any timing you
 measure from Xcode is fiction. Install to `/Applications`, launch with `open`,
 and measure there.
 
+**5. An App Group is bound to the signing team, and an unsigned build has no
+team.** This is the one that would have sunk the product quietly. An App Group
+identifier is team-prefixed, so for an ad-hoc signature macOS *resolves* the
+group URL for the extension and then denies it the directory. Measured on
+8 September 2026 with one identical binary and two signatures:
+
+```
+Development signed (TeamIdentifier=VKN4MYB5ZW)   container ok rw, 2 docs → renders
+ad-hoc signed      (TeamIdentifier not set)      url ok, cannot read     → blank
+```
+
+The *host app* survives ad-hoc signing; the extension does not. So the failure
+only appears in the shipped build, only on the widget, and
+`containerURL(forSecurityApplicationGroupIdentifier:)` returning non-nil is not
+evidence of anything — you have to try to list the directory.
+
+Since Fathom ships unsigned, an App Group would mean every downloaded copy
+showed empty widgets forever. Fathom therefore uses **`/Users/Shared/Fathom/<uid>`
+with `temporary-exception.files.absolute-path.read-write`** on both targets,
+which is not bound to a signing identity and works under both. Verified ad-hoc
+signed, with no app-group entitlement present at all.
+
+**6. WidgetKit's own cache knows the real widget sizes.** Do not guess them,
+and do not carry the iOS numbers over — on macOS `systemLarge` is square, not
+portrait. `~/Library/Containers/<ext>/Data/SystemData/com.apple.chrono/timelines/`
+names each file after the geometry it was rendered at:
+
+```
+systemSmall               164 x 164   corner radius 27.88
+systemMedium              344 x 164   corner radius 27.88
+systemLarge               344 x 344   corner radius 27.88
+systemExtraLargeLandscape 704 x 344   corner radius 27.88
+```
+
 Also: the embedded extension's bundle id must be prefixed with the host app's
 full bundle id, or `ValidateEmbeddedBinary` fails the build.
+
+And a note on observability, since a widget extension has no console and trap 4
+rules out the debugger: on this machine `log show` returns nothing at all, for
+any predicate. Do not plan to diagnose an extension through the unified log.
+Fathom's extension writes a trace into its own container and renders its own
+store diagnosis onto the widget face, which is how trap 5 was found.
 
 ---
 

@@ -33,9 +33,14 @@ a document of positioned elements with styles and data bindings, which one
 universal extension reads and interprets on every reload.
 
 ```
-Fathom.app ──writes──▶  App Group container  ◀──reads── FathomWidget.appex
-   editor                  *.fathom (JSON)              interprets + draws
+Fathom.app ──writes──▶  /Users/Shared/Fathom/<uid>  ◀──reads── FathomWidget.appex
+   editor                    *.fathom (JSON)                  interprets + draws
 ```
+
+Not an App Group, deliberately. A group is bound to the signing team and an
+unsigned build has no team, so an ad-hoc signed extension resolves the group
+URL and is then denied the directory — silently, and only in the shipped
+build. `SPEC.md` §6 trap 5 has the measurement.
 
 ## Building
 
@@ -51,8 +56,8 @@ xcodebuild -project Fathom.xcodeproj -scheme Fathom -configuration Release \
 ```
 
 Widget extensions must be sandboxed or macOS silently refuses to register them,
-and the app and the extension can only share state through an App Group. Both
-are already set up in `project.yml`; `SPEC.md` §6 explains what happens if you
+and the shared store is a sandbox exception rather than an App Group. Both are
+already set up in `project.yml`; `SPEC.md` §6 explains what happens if you
 change them.
 
 ## Installing a release

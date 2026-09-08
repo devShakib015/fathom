@@ -41,7 +41,7 @@ enum PreviewExporter {
 
     @discardableResult
     static func write(_ doc: WidgetDoc, data: ResolvedData) -> URL? {
-        guard let dir = AppGroup.directory("Previews"),
+        guard let dir = SharedStore.directory("Previews"),
               let png = png(for: doc, data: data)
         else { return nil }
         let url = dir.appendingPathComponent("\(doc.id.uuidString).png")

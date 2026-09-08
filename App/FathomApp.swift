@@ -30,7 +30,7 @@ struct FathomApp: App {
 @Observable
 final class Library {
     private(set) var documents: [WidgetDoc] = []
-    private(set) var containerPath: String = AppGroup.diagnosis
+    private(set) var containerPath: String = SharedStore.diagnosis
     var selection: UUID?
 
     init() {
@@ -51,7 +51,7 @@ final class Library {
 
     func reload() {
         documents = DocumentStore.shared.allDocuments()
-        containerPath = AppGroup.diagnosis
+        containerPath = SharedStore.diagnosis
         if selection == nil || !documents.contains(where: { $0.id == selection }) {
             selection = documents.first?.id
         }

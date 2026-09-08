@@ -31,7 +31,7 @@ struct DocumentStore {
     // MARK: - Reading
 
     func allDocuments() -> [WidgetDoc] {
-        guard let dir = AppGroup.documents,
+        guard let dir = SharedStore.documents,
               let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path)
         else { return [] }
 
@@ -42,7 +42,7 @@ struct DocumentStore {
     }
 
     func document(id: UUID) -> WidgetDoc? {
-        guard let dir = AppGroup.documents else { return nil }
+        guard let dir = SharedStore.documents else { return nil }
         return document(at: dir.appendingPathComponent("\(id.uuidString).\(fileExtension)"))
     }
 
@@ -51,7 +51,7 @@ struct DocumentStore {
         do {
             return try decoder.decode(WidgetDoc.self, from: data).sanitised
         } catch {
-            AppGroup.log.error("Unreadable document at \(url.lastPathComponent): \(error.localizedDescription)")
+            SharedStore.log.error("Unreadable document at \(url.lastPathComponent): \(error.localizedDescription)")
             return nil
         }
     }
@@ -60,8 +60,8 @@ struct DocumentStore {
 
     @discardableResult
     func save(_ doc: WidgetDoc) -> Bool {
-        guard let dir = AppGroup.documents else {
-            AppGroup.log.error("Cannot save: \(AppGroup.diagnosis)")
+        guard let dir = SharedStore.documents else {
+            SharedStore.log.error("Cannot save: \(SharedStore.diagnosis)")
             return false
         }
         let url = dir.appendingPathComponent("\(doc.id.uuidString).\(fileExtension)")
@@ -69,13 +69,13 @@ struct DocumentStore {
             try encoder.encode(doc.sanitised).write(to: url, options: .atomic)
             return true
         } catch {
-            AppGroup.log.error("Save failed: \(error.localizedDescription)")
+            SharedStore.log.error("Save failed: \(error.localizedDescription)")
             return false
         }
     }
 
     func delete(id: UUID) {
-        guard let dir = AppGroup.documents else { return }
+        guard let dir = SharedStore.documents else { return }
         try? FileManager.default.removeItem(
             at: dir.appendingPathComponent("\(id.uuidString).\(fileExtension)"))
     }
@@ -96,7 +96,7 @@ extension DocumentStore {
     /// Doing it this way first keeps the end-to-end path short enough to prove
     /// before the editor exists.
     private var activeFileURL: URL? {
-        AppGroup.container?.appendingPathComponent("active.json")
+        SharedStore.container?.appendingPathComponent("active.json")
     }
 
     func activeDocumentID(for family: WidgetDoc.Family) -> UUID? {

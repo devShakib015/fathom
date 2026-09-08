@@ -130,7 +130,7 @@ enum DataResolver {
 /// and the app agree about what "stale" means.
 enum SourceCache {
     private static func url(_ id: UUID) -> URL? {
-        AppGroup.caches?.appendingPathComponent("\(id.uuidString).json")
+        SharedStore.caches?.appendingPathComponent("\(id.uuidString).json")
     }
 
     static func write(_ value: DataValue, for id: UUID) {

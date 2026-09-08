@@ -44,12 +44,13 @@ targets:
       path: App/Fathom.entitlements
       properties:
         com.apple.security.app-sandbox: true
-        # Trap 3: a sandboxed extension's home directory IS its container, so
-        # a home-relative exception can never reach the app's files. An App
-        # Group is the only shared surface. Team-prefixed because Fathom is
-        # distributed outside the App Store.
-        com.apple.security.application-groups:
-          - VKN4MYB5ZW.com.devshakib.fathom
+        # NOT an App Group. A group is bound to the signing team and an
+        # ad-hoc signature has no team, so an unsigned build's extension gets
+        # a group URL it is then denied. Measured; see Core/Store/SharedStore.
+        # An absolute-path exception is identity-independent and works under
+        # both signatures.
+        com.apple.security.temporary-exception.files.absolute-path.read-write:
+          - /Users/Shared/Fathom/
         # The app fetches a user's JSON endpoint to show them its tree.
         com.apple.security.network.client: true
     info:
@@ -79,8 +80,8 @@ targets:
       path: Widget/FathomWidget.entitlements
       properties:
         com.apple.security.app-sandbox: true
-        com.apple.security.application-groups:
-          - VKN4MYB5ZW.com.devshakib.fathom
+        com.apple.security.temporary-exception.files.absolute-path.read-write:
+          - /Users/Shared/Fathom/
         # A widget that renders live data has to be able to reach the network
         # itself; the host app is not running when the timeline reloads.
         com.apple.security.network.client: true
