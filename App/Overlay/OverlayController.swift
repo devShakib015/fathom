@@ -35,7 +35,17 @@ final class OverlayController {
     // MARK: - Lifecycle
 
     func add(for doc: WidgetDoc) -> Overlay {
-        let overlay = Overlay(documentID: doc.id, size: doc.family.referenceSize)
+        var overlay = Overlay(documentID: doc.id, size: doc.family.referenceSize)
+        // Cascade off whatever is already there. Two overlays landing on the
+        // same pixel look like one overlay, and the second appears not to have
+        // worked.
+        let taken = Set(overlays.map { "\($0.screenIndex):\($0.x),\($0.y)" })
+        var attempt = 0
+        while taken.contains("\(overlay.screenIndex):\(overlay.x),\(overlay.y)"), attempt < 12 {
+            overlay.x -= 0.04
+            overlay.y += 0.06
+            attempt += 1
+        }
         overlays.append(overlay)
         OverlayStore.shared.upsert(overlay)
         show(overlay)
