@@ -187,6 +187,8 @@ private struct TreeBrowser: View {
                     .foregroundStyle(Palette.textDim)
                     .fixedSize(horizontal: false, vertical: true)
 
+                if source.kind == .json { SuggestFieldsRow(root: root) }
+
                 VStack(alignment: .leading, spacing: 0) {
                     TreeNode(label: source.name, path: "", value: root, depth: 0,
                              expanded: $expanded, model: model, sourceID: source.id, onBind: onBind)
@@ -308,6 +310,83 @@ private struct TreeNode: View {
             }
         default:
             return []
+        }
+    }
+}
+
+
+/// Asks the on-device model which of an endpoint's fields are worth showing.
+///
+/// An unfamiliar API can return two hundred leaves, most of them identifiers,
+/// timing metadata and internal codes. Picking the six a person would glance at
+/// is exactly the kind of judgement a small model is good at, and getting it
+/// wrong costs nothing — these are suggestions next to the tree, not changes to
+/// the document.
+private struct SuggestFieldsRow: View {
+    let root: DataValue
+
+    @State private var suggestions: [Intelligence.FieldSuggestion] = []
+    @State private var isThinking = false
+    @State private var problem: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Button {
+                    suggest()
+                } label: {
+                    Label(isThinking ? "Reading the endpoint…" : "Which fields are useful?",
+                          systemImage: "sparkles")
+                        .font(.system(size: 10))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Intelligence.status.isReady ? Palette.accent : Palette.textDim)
+                .disabled(!Intelligence.status.isReady || isThinking)
+                if isThinking { ProgressView().controlSize(.mini) }
+            }
+
+            if let problem {
+                Text(problem)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ForEach(suggestions, id: \.path) { suggestion in
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.system(size: 8))
+                        .foregroundStyle(Palette.textDim)
+                    Text(suggestion.label)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Palette.text)
+                    Text(suggestion.path)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(Palette.textDim)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
+            }
+        }
+    }
+
+    private func suggest() {
+        guard !isThinking else { return }
+        isThinking = true
+        problem = nil
+        let leaves = root.leaves()
+        Task { @MainActor in
+            defer { isThinking = false }
+            do {
+                // Only paths that actually exist survive: a suggested field
+                // that resolves to nothing would be worse than no suggestion.
+                let proposed = try await Intelligence.suggestFields(from: leaves)
+                let known = Set(leaves.map(\.path))
+                suggestions = proposed.filter { known.contains($0.path) }
+                if suggestions.isEmpty { problem = "Nothing it suggested matched a real field." }
+            } catch {
+                problem = error.localizedDescription
+            }
         }
     }
 }

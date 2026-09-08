@@ -345,3 +345,31 @@ private struct KeyOrder {
         }
     }
 }
+
+extension DataValue {
+    /// Every leaf in the tree with its path and a sample of its value.
+    ///
+    /// Used to describe an endpoint to something that has to reason about it in
+    /// a small context window — so it is capped, and arrays contribute only
+    /// their first element: knowing `daily.time[0]` exists says everything
+    /// `daily.time[43]` would.
+    func leaves(limit: Int = 80) -> [(path: String, sample: String)] {
+        var found: [(String, String)] = []
+
+        func walk(_ value: DataValue, _ path: String) {
+            guard found.count < limit else { return }
+            switch value {
+            case .object(let pairs):
+                for (key, child) in pairs {
+                    walk(child, path.isEmpty ? key : "\(path).\(key)")
+                }
+            case .array(let items):
+                if let first = items.first { walk(first, "\(path)[0]") }
+            default:
+                if !path.isEmpty { found.append((path, value.stringValue)) }
+            }
+        }
+        walk(self, "")
+        return found
+    }
+}

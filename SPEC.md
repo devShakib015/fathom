@@ -366,11 +366,34 @@ code.
 
 **Apple Foundation Models, in the app only.** On-device, no account, no network,
 free, and macOS 26 already the floor — it fits the section 2 promises exactly.
-It generates and restyles documents from a description and suggests bindings
-from a fetched tree. It does **not** run in the widget extension: keeping render
-time deterministic is what makes "at most 64 seconds stale" true, and an
-on-device model on every reload would be neither fast nor honest. Degrade
-quietly when Apple Intelligence is unavailable.
+It does **not** run in the widget extension: keeping render time deterministic
+is what makes "at most 64 seconds stale" true, and an on-device model on every
+reload would be neither fast nor honest. Verified: the framework is linked into
+the app and absent from the extension binary.
+
+Built 8 Sep, and narrower than this section first implied. The system model is
+small, with a context window to match, and asking it to emit a whole document —
+unit frames, styles, bindings, expressions — produces plausible JSON that
+renders as nonsense. It is asked to **choose** instead: which designed layout,
+which palette, which size, what to call it. That is classification against a
+bounded vocabulary, which a small model does well. Every field it returns is
+matched against the catalog, near-misses are resolved by edit distance, and
+anything unrecognisable falls back to a default — so a confused model produces a
+widget that is merely not what you asked for, never a broken one.
+
+The second use is picking the three to six useful fields out of a freshly
+fetched endpoint, where the judgement is "what would a person glance at" and
+being wrong costs nothing, because they are suggestions beside the tree rather
+than changes to the document.
+
+One thing worth recording: the model was given bare palette ids at first and
+answered "a minimal clock in black and white" with the mint palette. Palettes
+now carry a plain-words description of how they look, and the same prompt
+returns Mono. Describing the vocabulary mattered more than anything about the
+prompt itself.
+
+Not built: restyling an existing document by description. Degrades quietly when
+Apple Intelligence is off — Fathom is complete without it and the copy says so.
 
 **More Apple data sources.** EventKit (calendar, reminders), CoreLocation,
 richer IOKit and ProcessInfo (CPU, memory, thermal state, uptime), Bluetooth

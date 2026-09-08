@@ -22,6 +22,7 @@ struct GalleryView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            describe
             Divider().overlay(Palette.hairline)
             filters
             Divider().overlay(Palette.hairline)
@@ -51,10 +52,21 @@ struct GalleryView: View {
             Spacer()
             TextField("Search", text: $query)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
+                .frame(width: 190)
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 13)
+        .padding(.top, 13)
+        .padding(.bottom, 9)
+    }
+
+    /// Sits above the grid rather than in a menu: describing what you want is
+    /// a way into the catalog, not a separate feature bolted beside it.
+    private var describe: some View {
+        DescribeWidgetBar { entry in
+            preview = entry
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 11)
     }
 
     private var filters: some View {
