@@ -60,6 +60,17 @@ and the shared store is a sandbox exception rather than an App Group. Both are
 already set up in `project.yml`; `SPEC.md` §6 explains what happens if you
 change them.
 
+## Tests
+
+```bash
+xcodebuild test -project Fathom.xcodeproj -scheme FathomTests -destination 'platform=macOS'
+```
+
+44 tests over the interpreter, the expression language, the JSON parser, format
+inference, the document format and the element tree — the code where a
+regression would be silent rather than loud. A widget that renders a slightly
+wrong number every sixty-four seconds tells nobody anything.
+
 ## Installing a release
 
 Fathom is not notarised. Notarisation requires Apple's $99/year programme and

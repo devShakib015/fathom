@@ -110,3 +110,17 @@ targets:
         NSRemindersFullAccessUsageDescription: "Fathom shows your due reminders on a widget you designed. Nothing leaves this Mac."
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+
+  FathomTests:
+    type: bundle.unit-test
+    platform: macOS
+    # Compiles Core directly rather than importing it. Core is not a module —
+    # it is source shared into the app and the extension — so the tests exercise
+    # exactly the files those two ship, with no wrapper in between.
+    sources: [Tests, Core]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.devshakib.fathom.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
