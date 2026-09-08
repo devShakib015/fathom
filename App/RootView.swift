@@ -5,6 +5,7 @@ struct RootView: View {
     @Environment(Library.self) private var library
     @Environment(OverlayController.self) private var overlays
     @Environment(RuleEngine.self) private var rules
+    @Environment(MenuBarController.self) private var menuBar
     @State private var editor: EditorModel?
     @State private var destination: Destination = .editor
     @State private var importing: DocumentTransfer.Inspection?
@@ -51,7 +52,10 @@ struct RootView: View {
         // An edit has to reach the overlays too, or the canvas and the screen
         // disagree until the next refresh.
         .onChange(of: editor?.doc) { _, new in
-            if let new { overlays.documentChanged(new.id) }
+            if let new {
+                overlays.documentChanged(new.id)
+                menuBar.documentChanged(new.id)
+            }
         }
     }
 
@@ -334,6 +338,7 @@ private struct DocumentRow: View {
         case .medium: "rectangle"
         case .large: "square.grid.2x2"
         case .extraLarge: "rectangle.split.2x1"
+        case .menuBar: "menubar.rectangle"
         }
     }
 }

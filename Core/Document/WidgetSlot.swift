@@ -42,12 +42,16 @@ struct WidgetSlot: Hashable, Sendable, Identifiable {
     /// Deliberately uneven. Every slot is a permanent entry in the widget
     /// gallery, so the count is a judgement about how many of a size somebody
     /// realistically keeps on one desktop, not a number chosen for symmetry.
+    /// Families absent from this table have no slots at all, which is how the
+    /// menu bar — a surface WidgetKit knows nothing about — stays out of a
+    /// mechanism that only exists to work around WidgetKit.
     static let counts: [WidgetDoc.Family: Int] = [
         .small: 4, .medium: 3, .large: 2, .extraLarge: 1,
     ]
 
     static func all(for family: WidgetDoc.Family) -> [WidgetSlot] {
-        (1...(counts[family] ?? 1)).map { WidgetSlot(family: family, index: $0) }
+        guard let count = counts[family], count > 0 else { return [] }
+        return (1...count).map { WidgetSlot(family: family, index: $0) }
     }
 
     static var everything: [WidgetSlot] {

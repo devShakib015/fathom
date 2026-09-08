@@ -90,15 +90,27 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
 
     enum Family: String, Codable, CaseIterable {
         case small, medium, large, extraLarge
+        /// A strip in the menu bar. Not a WidgetKit family — Fathom draws this
+        /// one itself — but a family all the same, because the aspect ratio is
+        /// fixed and nothing composed for a square reads in a 22-point band.
+        /// Overlays could be a host rather than a family precisely because they
+        /// impose no shape; this does.
+        case menuBar
 
-        var widgetFamily: WidgetFamily {
+        /// nil for surfaces WidgetKit knows nothing about.
+        var widgetFamily: WidgetFamily? {
             switch self {
             case .small: .systemSmall
             case .medium: .systemMedium
             case .large: .systemLarge
             case .extraLarge: .systemExtraLarge
+            case .menuBar: nil
             }
         }
+
+        /// Whether a placed WidgetKit widget can show this. The menu bar and
+        /// anything after it are Fathom's own surfaces.
+        var isWidgetKitFamily: Bool { widgetFamily != nil }
 
         init?(_ family: WidgetFamily) {
             switch family {
@@ -116,6 +128,7 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
             case .medium: "Medium"
             case .large: "Large"
             case .extraLarge: "Extra large"
+            case .menuBar: "Menu bar"
             }
         }
 
@@ -134,6 +147,10 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
             case .medium: CGSize(width: 344, height: 164)
             case .large: CGSize(width: 344, height: 344)
             case .extraLarge: CGSize(width: 704, height: 344)
+            // 22 is `NSStatusBar.system.thickness`, measured rather than
+            // guessed. The width is a starting point; a menu bar item can be
+            // any width and says so.
+            case .menuBar: CGSize(width: 160, height: 22)
             }
         }
 

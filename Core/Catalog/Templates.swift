@@ -59,6 +59,7 @@ enum Templates {
         weatherNow, weatherSplit, weatherWeek,
         nextEvent, agendaList, remindersList,
         typographicTime, statPair,
+        menuClock, menuVitals, menuBattery, menuWeather,
     ]
 
     // MARK: - Time
@@ -688,6 +689,96 @@ enum Templates {
                 Kit.text("Right label", 0.54, 0.60, 0.4, 0.12, size: 10, weight: .medium,
                          colour: theme.dimSpec, align: .center, tracking: 1.2, literal: "MEMORY"),
             ], sources: [s])
+        }
+    }
+
+    // MARK: - Menu bar
+    //
+    // Twenty-two points tall, which is not much: one or two values, nothing
+    // decorative, type at eleven or twelve points. A design that works at 164
+    // square does not survive here, which is why the menu bar is a family of
+    // its own rather than a scaling problem.
+
+    static var menuClock: CatalogTemplate {
+        CatalogTemplate(id: "menu-clock", name: "Clock", category: .time,
+                        tags: ["menu bar", "clock", "time", "date"],
+                        families: [.menuBar], needs: []) { theme, _ in
+            let s = system()
+            return WidgetDoc(name: "Clock", family: .menuBar, background: theme.background,
+                             elements: [
+                Kit.text("Time", 0.03, 0.10, 0.52, 0.80, size: 12, weight: .semibold,
+                         design: .rounded, colour: theme.textSpec, literal: "18:42",
+                         bind: Kit.time(s.id)),
+                Kit.text("Day", 0.55, 0.16, 0.42, 0.68, size: 10, weight: .medium,
+                         colour: theme.dimSpec, align: .trailing, literal: "Tue",
+                         bind: Kit.time(s.id, .shortWeekday)),
+            ], sources: [s])
+        }
+    }
+
+    static var menuVitals: CatalogTemplate {
+        CatalogTemplate(id: "menu-vitals", name: "CPU and memory", category: .system,
+                        tags: ["menu bar", "cpu", "memory", "load"],
+                        families: [.menuBar], needs: [.system]) { theme, _ in
+            let s = system()
+            return WidgetDoc(name: "CPU and memory", family: .menuBar, background: theme.background,
+                             elements: [
+                Kit.text("CPU label", 0.02, 0.18, 0.14, 0.66, size: 9, weight: .semibold,
+                         colour: theme.dimSpec, literal: "CPU"),
+                Kit.text("CPU", 0.17, 0.12, 0.22, 0.78, size: 11, weight: .semibold,
+                         design: .rounded, colour: theme.accentSpec, literal: "43%",
+                         bind: Kit.percent(s.id, "cpu.usage")),
+                Kit.text("Memory label", 0.44, 0.18, 0.16, 0.66, size: 9, weight: .semibold,
+                         colour: theme.dimSpec, literal: "MEM"),
+                Kit.text("Memory", 0.61, 0.12, 0.22, 0.78, size: 11, weight: .semibold,
+                         design: .rounded, colour: theme.accentAltSpec, literal: "76%",
+                         bind: Kit.percent(s.id, "memory.usedFraction")),
+            ], sources: [s])
+        }
+    }
+
+    static var menuBattery: CatalogTemplate {
+        CatalogTemplate(id: "menu-battery", name: "Battery", category: .battery,
+                        tags: ["menu bar", "battery", "charge"],
+                        families: [.menuBar], needs: [.system]) { theme, _ in
+            let s = system()
+            return WidgetDoc(name: "Battery", family: .menuBar, background: theme.background,
+                             elements: [
+                Kit.bar("Level", 0.03, 0.34, 0.52, 0.32, colour: theme.accentSpec,
+                        track: theme.dim(0.28), gradient: theme.accentAltSpec,
+                        literal: "0.9", bind: Kit.percent(s.id, "battery.percent")),
+                Kit.text("Percent", 0.58, 0.10, 0.30, 0.80, size: 11, weight: .semibold,
+                         design: .rounded, colour: theme.textSpec, align: .trailing,
+                         literal: "90%", bind: Kit.percent(s.id, "battery.percent")),
+                Element(name: "Bolt", kind: .symbol,
+                        frame: Frame(x: 0.90, y: 0.22, width: 0.08, height: 0.56),
+                        style: Style(foreground: theme.accentAltSpec, alignment: .center),
+                        text: "bolt.fill",
+                        binding: nil,
+                        visibleWhen: "battery.isCharging"),
+            ], sources: [s])
+        }
+    }
+
+    static var menuWeather: CatalogTemplate {
+        CatalogTemplate(id: "menu-weather", name: "Weather", category: .weather,
+                        tags: ["menu bar", "weather", "temperature"],
+                        families: [.menuBar], needs: [.json]) { theme, _ in
+            let w = openMeteo()
+            return WidgetDoc(name: "Weather", family: .menuBar, background: theme.background,
+                             elements: [
+                Kit.symbol("Sky", 0.02, 0.14, 0.16, 0.72, colour: theme.accentSpec,
+                           literal: "sun.max.fill",
+                           bind: Kit.bind(w.id, "current.weather_code", Format(kind: .text),
+                                          fallback: "questionmark", expression: skySymbol)),
+                Kit.text("Temp", 0.21, 0.10, 0.44, 0.80, size: 12, weight: .semibold,
+                         design: .rounded, colour: theme.textSpec, literal: "36°",
+                         bind: Kit.bind(w.id, "current.temperature_2m",
+                                        Format(kind: .number, suffix: "°"))),
+                Kit.text("Humidity", 0.66, 0.16, 0.32, 0.68, size: 9, weight: .medium,
+                         colour: theme.dimSpec, align: .trailing, literal: "55%",
+                         bind: Kit.percent(w.id, "current.relative_humidity_2m")),
+            ], sources: [w])
         }
     }
 }

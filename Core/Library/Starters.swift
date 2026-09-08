@@ -8,7 +8,7 @@ import Foundation
 /// the moment somebody opened it to see how it was made.
 enum Starters {
 
-    static var all: [WidgetDoc] { [systemSmall, refreshFloorMedium, weatherMedium, vitalsMedium, weekAheadLarge] }
+    static var all: [WidgetDoc] { [systemSmall, refreshFloorMedium, weatherMedium, vitalsMedium, weekAheadLarge, menuBarClock] }
 
     /// Stable ids so that reinstalling Fathom updates the starters in place
     /// rather than duplicating them beside the user's edited copies.
@@ -572,5 +572,36 @@ enum Starters {
                         text: "Dubai · Open-Meteo · refreshed every 64 s"),
             ],
             sources: [system, weather])
+    }
+
+    // MARK: - Menu bar clock
+
+    /// Ships so the menu bar surface is not an empty promise on first run.
+    static var menuBarClock: WidgetDoc {
+        let source = systemSource()
+        return WidgetDoc(
+            id: UUID(uuidString: "5B1F0F1A-0000-4000-A000-0000000000A6")!,
+            name: "Menu clock",
+            family: .menuBar,
+            background: .none,
+            elements: [
+                Element(name: "Time", kind: .text,
+                        frame: Frame(x: 0.03, y: 0.10, width: 0.52, height: 0.80),
+                        style: Style(font: FontSpec(size: 12, weight: .semibold, design: .rounded),
+                                     foreground: .text),
+                        text: "18:42",
+                        binding: DataBinding(sourceID: source.id, keyPath: "date.now",
+                                             format: Format(kind: .date, dateStyle: .time),
+                                             fallback: "--:--")),
+                Element(name: "Day", kind: .text,
+                        frame: Frame(x: 0.55, y: 0.16, width: 0.42, height: 0.68),
+                        style: Style(font: FontSpec(size: 10, weight: .medium),
+                                     foreground: .dim, alignment: .trailing),
+                        text: "Tue",
+                        binding: DataBinding(sourceID: source.id, keyPath: "date.now",
+                                             format: Format(kind: .date, dateStyle: .shortWeekday),
+                                             fallback: "—")),
+            ],
+            sources: [source])
     }
 }

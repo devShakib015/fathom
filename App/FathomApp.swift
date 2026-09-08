@@ -17,6 +17,7 @@ struct FathomApp: App {
     @State private var library = Library()
     @State private var overlays = OverlayController()
     @State private var rules = RuleEngine()
+    @State private var menuBar = MenuBarController()
     @Environment(\.openWindow) private var openWindow
 
     private func openAbout() { openWindow(id: AboutWindow.id) }
@@ -27,8 +28,10 @@ struct FathomApp: App {
                 .environment(library)
                 .environment(overlays)
                 .environment(rules)
+                .environment(menuBar)
                 .task {
                     overlays.start()
+                    menuBar.start()
                     // The engine can put overlays on and off screen, so it
                     // needs to know who owns them.
                     rules.overlays = overlays
@@ -157,6 +160,7 @@ final class Library {
         // Overlays showing a deleted document would be windows nothing can
         // fill, so they go with it.
         OverlayStore.shared.removeAll(forDocument: doc.id)
+        MenuBarStore.shared.removeAll(forDocument: doc.id)
         if let slot = DocumentStore.shared.slot(holding: doc.id) {
             DocumentStore.shared.setActiveDocument(nil, for: slot)
         }

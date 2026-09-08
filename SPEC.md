@@ -475,11 +475,13 @@ opt in rather than being retrofitted.
 
 What is genuinely new is the *host*. Neither surface is WidgetKit:
 
-- **Menu bar** is an `NSStatusItem` owned by the app, which means Fathom has to
-  keep running — a background agent with a Dock-icon-optional setting. It also
-  escapes the 64-second floor entirely, since nothing is asking WidgetKit for a
-  timeline; the app can refresh on whatever interval it likes. That deserves its
-  own measurement before any claim is made about it.
+- **Menu bar** — **built 8 Sep.** An `NSStatusItem` per item, drawing a
+  document rendered to an image. Fathom keeps running, with a Dock-icon setting
+  rather than a decision made for the user. Unlike an overlay it has a shape
+  imposed on it — 22 points, measured from `NSStatusBar.system.thickness` — so
+  it is a `Family` rather than a host: nothing composed for a square reads in a
+  band that tall. Four catalog layouts and one starter ship for it. Free of the
+  64-second floor, like every surface Fathom drives itself.
 - **The island** is a borderless, non-activating, always-on-top window placed
   near the notch. macOS 26 offers no island API; this is a window Fathom draws
   and positions itself.
