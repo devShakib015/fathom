@@ -214,11 +214,38 @@ private struct ElementInspector: View {
         }
 
         if element.kind == .text {
-            InspectorRow(label: "Face") {
-                Picker("", selection: binding(\.style.font.design, "Face")) {
-                    ForEach(FontSpec.Design.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
+            InspectorRow(label: "Font") {
+                Picker("", selection: Binding(
+                    get: { element.style.font.family ?? "" },
+                    set: { new in
+                        model.update(element.id, "Font") {
+                            $0.style.font.family = new.isEmpty ? nil : new
+                        }
+                    }
+                )) {
+                    // The system font is not a family and cannot be asked for
+                    // by name, so it is the empty selection rather than an
+                    // entry in the list.
+                    Text("System").tag("")
+                    Divider()
+                    ForEach(FontCatalogue.families, id: \.self) { Text($0).tag($0) }
                 }
                 .labelsHidden()
+            }
+
+            if element.style.font.family == nil {
+                InspectorRow(label: "Face") {
+                    Picker("", selection: binding(\.style.font.design, "Face")) {
+                        ForEach(FontSpec.Design.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
+                    }
+                    .labelsHidden()
+                }
+            } else if !element.style.font.isAvailable {
+                Label("This Mac does not have that font — it will draw in the system font.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             InspectorRow(label: "Lines") {
                 NumberField(label: "Lines", value: Binding(

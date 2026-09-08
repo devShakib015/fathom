@@ -70,6 +70,17 @@ targets:
         LSMinimumSystemVersion: "26.0"
         LSApplicationCategoryType: public.app-category.utilities
         NSHumanReadableCopyright: "MIT licensed. Free, every feature, forever."
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.devshakib.fathom.widget
+            UTTypeDescription: Fathom Widget
+            UTTypeConformsTo: [public.json]
+            UTTypeTagSpecification:
+              public.filename-extension: [fathom]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Fathom Widget
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes: [com.devshakib.fathom.widget]
         NSCalendarsFullAccessUsageDescription: "Fathom shows your upcoming events on a widget you designed. Nothing leaves this Mac."
         NSRemindersFullAccessUsageDescription: "Fathom shows your due reminders on a widget you designed. Nothing leaves this Mac."
     dependencies:

@@ -29,14 +29,15 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
     var origin: String?
 
     /// 2 added binding expressions; 3 added nested children, conditional
-    /// visibility, four element kinds and the second wave of style properties.
+    /// visibility, four element kinds and the second wave of style properties;
+    /// 4 added named font families.
     ///
     /// Every addition decodes with a default, so an older document still
     /// opens. The number exists for the other direction: a document using a
     /// newer feature, opened by an older build, would silently render
     /// something subtly wrong rather than fail — which is exactly the kind of
     /// quiet wrongness that matters once documents can be handed around.
-    static let currentSchemaVersion = 3
+    static let currentSchemaVersion = 4
 
     /// macOS substitutes its own minimum reload interval and then honours it
     /// exactly: measured at 64.15 s ± 0.15 over an hour, with no widening.

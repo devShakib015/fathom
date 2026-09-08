@@ -368,10 +368,13 @@ section 2 is.
 1. **Arranger *and* builder, library as the on-ramp.** The canvas is freeform:
    add, delete, move, resize and restyle any primitive, bind any field. The
    eight library widgets exist to be opened and dissected, not just placed.
-2. **Design the format for sharing; do not ship sharing.** No import/export UI
-   in v1, but the document format carries `schemaVersion` from day one, is
-   stable JSON with string-valued enums, and declares every host it will
-   contact so a future importer can show them before anything is fetched.
+2. ~~**Design the format for sharing; do not ship sharing.**~~ **Shipped
+   8 Sep**, once there was something to disclose with. The format carried
+   `schemaVersion`, stable JSON and declared hosts from day one, so the importer
+   only had to ask them. It shows, before anything is added and without running
+   the document: every endpoint it will contact, any personal data it wants,
+   fonts this Mac does not have, and whether it was made by a newer build. A
+   document that does none of those says so plainly instead.
 3. **Paste a URL, browse the parsed tree, drag a leaf onto an element.** The
    full binding UI, including arrays and type-to-format inference. This is the
    demo that makes the no-budget finding visible, so it is not the part to trim.

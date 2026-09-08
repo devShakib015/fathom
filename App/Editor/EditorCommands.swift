@@ -25,6 +25,12 @@ struct EditorCommands: Commands {
     var body: some Commands {
         // Replaces the system's own undo group, which has nothing to act on:
         // the document is not an NSDocument and does not use NSUndoManager.
+        CommandGroup(replacing: .saveItem) {
+            Button("Share Widget…") { editor.map { Sharing.export($0.doc) } }
+                .keyboardShortcut("e", modifiers: .command)
+                .disabled(editor == nil)
+        }
+
         CommandGroup(replacing: .undoRedo) {
             Button("Undo") { editor?.undo() }
                 .keyboardShortcut("z", modifiers: .command)

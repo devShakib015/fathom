@@ -7,6 +7,7 @@ struct RootView: View {
     @Environment(RuleEngine.self) private var rules
     @State private var editor: EditorModel?
     @State private var destination: Destination = .editor
+    @State private var importing: DocumentTransfer.Inspection?
 
     /// What the detail pane is showing. Rules are not documents, so they get a
     /// destination rather than being wedged into the widget list.
@@ -32,6 +33,12 @@ struct RootView: View {
             }
         }
         .background(Palette.background)
+        .sheet(item: $importing) { inspection in
+            ImportSheet(inspection: inspection) { doc in
+                library.add(doc)
+                destination = .editor
+            }
+        }
         .onChange(of: library.selection, initial: true) { _, _ in
             openSelected()
             if library.selection != nil { destination = .editor }
@@ -68,6 +75,7 @@ struct RootView: View {
                             .tag(doc.id)
                             .contextMenu {
                                 Button("Duplicate") { library.duplicate(doc) }
+                                Button("Share…") { Sharing.export(doc) }
                                 Button("Show on desktop") { library.makeActive(doc) }
                                 if library.slot(holding: doc) != nil {
                                     Button("Take off the desktop") { library.remove(doc) }
@@ -160,6 +168,10 @@ struct RootView: View {
         Menu {
             ForEach(WidgetDoc.Family.allCases, id: \.self) { family in
                 Button(family.displayName) { library.create(family: family) }
+            }
+            Divider()
+            Button("Open a widget someone sent…") {
+                importing = Sharing.chooseFile()
             }
         } label: {
             Label("New widget", systemImage: "plus")

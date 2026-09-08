@@ -84,12 +84,44 @@ struct FontSpec: Codable, Hashable {
     /// anything bound to data, because a 64-second refresh makes reflow
     /// visible in a way a static label never does.
     var monospacedDigits: Bool
+    /// An installed font family by name. nil means the system font, shaped by
+    /// `design`.
+    ///
+    /// Stored as a name rather than embedded, which means a document can arrive
+    /// on a Mac that does not have the font. It falls back to the system font
+    /// rather than refusing to draw — see `isAvailable` — and the import sheet
+    /// says so before anything is added.
+    var family: String?
 
-    init(size: Double, weight: Weight = .regular, design: Design = .default, monospacedDigits: Bool = true) {
+    init(size: Double,
+         weight: Weight = .regular,
+         design: Design = .default,
+         monospacedDigits: Bool = true,
+         family: String? = nil) {
         self.size = size
         self.weight = weight
         self.design = design
         self.monospacedDigits = monospacedDigits
+        self.family = family
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case size, weight, design, monospacedDigits, family
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        size = try c.decode(Double.self, forKey: .size)
+        weight = try c.decode(Weight.self, forKey: .weight)
+        design = try c.decode(Design.self, forKey: .design)
+        monospacedDigits = try c.decodeIfPresent(Bool.self, forKey: .monospacedDigits) ?? true
+        family = try c.decodeIfPresent(String.self, forKey: .family)
+    }
+
+    /// Whether this Mac actually has the named family.
+    var isAvailable: Bool {
+        guard let family, !family.isEmpty else { return true }
+        return FontCatalogue.has(family)
     }
 
     enum Weight: String, Codable, CaseIterable {
@@ -122,7 +154,15 @@ struct FontSpec: Codable, Hashable {
     }
 
     func font(scale: Double) -> Font {
-        var f = Font.system(size: size * scale, weight: weight.swiftUI, design: design.swiftUI)
+        var f: Font
+        if let family, !family.isEmpty, FontCatalogue.has(family) {
+            f = Font.custom(family, size: size * scale).weight(weight.swiftUI)
+        } else {
+            // A named font this Mac does not have falls back rather than
+            // refusing to draw. A widget that renders nothing because of a
+            // missing typeface is worse than one that renders in San Francisco.
+            f = Font.system(size: size * scale, weight: weight.swiftUI, design: design.swiftUI)
+        }
         if monospacedDigits { f = f.monospacedDigit() }
         return f
     }
