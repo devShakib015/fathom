@@ -13,7 +13,8 @@ struct DocumentEntry: TimelineEntry {
     let date: Date
     let doc: WidgetDoc?
     let data: ResolvedData
-    var family: WidgetDoc.Family = .small
+    var slot: WidgetSlot = WidgetSlot(family: .small, index: 1)
+    var family: WidgetDoc.Family { slot.family }
     /// Which provider callback produced this entry. WidgetKit will happily
     /// show a placeholder forever if the timeline never arrives, and the two
     /// states are indistinguishable on screen without this.
@@ -23,31 +24,32 @@ struct DocumentEntry: TimelineEntry {
                                                    familiesPresent: [], containerPath: "not checked")
 }
 
-/// One provider, one per family.
+/// One provider per slot.
 struct DocumentProvider: TimelineProvider {
-    let family: WidgetDoc.Family
+    let slot: WidgetSlot
+    private var family: WidgetDoc.Family { slot.family }
 
     func placeholder(in context: Context) -> DocumentEntry {
         let diagnosis = StoreDiagnosis.current()
-        ExtensionTrace.write("placeholder family=\(family.rawValue) \(diagnosis.summary)")
+        ExtensionTrace.write("placeholder slot=\(slot.key) \(diagnosis.summary)")
         return DocumentEntry(date: Date(),
-                             doc: DocumentCatalog.document(for: family),
+                             doc: DocumentCatalog.document(for: slot),
                              data: ResolvedData(),
-                             family: family,
+                             slot: slot,
                              origin: "placeholder",
                              diagnosis: diagnosis)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (DocumentEntry) -> Void) {
         let diagnosis = StoreDiagnosis.current()
-        let doc = DocumentCatalog.document(for: family)
-        ExtensionTrace.write("snapshot family=\(family.rawValue) doc=\(doc?.name ?? "none") \(diagnosis.summary)")
+        let doc = DocumentCatalog.document(for: slot)
+        ExtensionTrace.write("snapshot slot=\(slot.key) doc=\(doc?.name ?? "none") \(diagnosis.summary)")
         // The gallery must not wait on somebody's endpoint, so system values
         // only, resolved synchronously.
         completion(DocumentEntry(date: Date(),
                                  doc: doc,
                                  data: doc.map { Self.systemOnlyData($0) } ?? ResolvedData(),
-                                 family: family,
+                                 slot: slot,
                                  origin: "snapshot",
                                  diagnosis: diagnosis))
     }
@@ -55,8 +57,8 @@ struct DocumentProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<DocumentEntry>) -> Void) {
         let now = Date()
         let diagnosis = StoreDiagnosis.current()
-        let doc = DocumentCatalog.document(for: family)
-        ExtensionTrace.write("timeline family=\(family.rawValue) doc=\(doc?.name ?? "none") \(diagnosis.summary)")
+        let doc = DocumentCatalog.document(for: slot)
+        ExtensionTrace.write("timeline slot=\(slot.key) doc=\(doc?.name ?? "none") \(diagnosis.summary)")
 
         func finish(_ entry: DocumentEntry, refresh: TimeInterval) {
             completion(Timeline(entries: [entry], policy: .after(now.addingTimeInterval(refresh))))
@@ -64,7 +66,7 @@ struct DocumentProvider: TimelineProvider {
 
         guard let doc else {
             finish(DocumentEntry(date: now, doc: nil, data: ResolvedData(),
-                                 family: family, origin: "timeline", diagnosis: diagnosis),
+                                 slot: slot, origin: "timeline", diagnosis: diagnosis),
                    refresh: WidgetDoc.refreshFloor)
             return
         }
@@ -79,7 +81,7 @@ struct DocumentProvider: TimelineProvider {
             let data = Self.systemOnlyData(doc, now: now)
             trace(doc, data)
             finish(DocumentEntry(date: now, doc: doc, data: data,
-                                 family: family, origin: "timeline", diagnosis: diagnosis),
+                                 slot: slot, origin: "timeline", diagnosis: diagnosis),
                    refresh: refresh)
             return
         }
@@ -92,7 +94,7 @@ struct DocumentProvider: TimelineProvider {
             // on macOS the floor is 64 seconds and does not decay, so asking
             // again is both allowed and more accurate than guessing the future.
             finish(DocumentEntry(date: now, doc: doc, data: data,
-                                 family: family, origin: "timeline", diagnosis: diagnosis),
+                                 slot: slot, origin: "timeline", diagnosis: diagnosis),
                    refresh: refresh)
         }
     }
@@ -110,7 +112,7 @@ struct DocumentProvider: TimelineProvider {
             .filter { $0.binding != nil }
             .map { "\($0.displayName)=\(data.text(for: $0))" }
             .joined(separator: " ")
-        ExtensionTrace.write("rendered family=\(family.rawValue) doc=\(doc.name) stale=\(data.isStale) [\(rendered)]")
+        ExtensionTrace.write("rendered slot=\(slot.key) doc=\(doc.name) stale=\(data.isStale) [\(rendered)]")
     }
 }
 
@@ -123,7 +125,7 @@ struct DocumentWidgetView: View {
                 WidgetCanvas(doc: doc, data: entry.data)
                     .fathomWidgetBackground(doc.background)
             } else {
-                EmptyStateView(family: entry.family, diagnosis: entry.diagnosis, origin: entry.origin)
+                EmptyStateView(slot: entry.slot, diagnosis: entry.diagnosis, origin: entry.origin)
                     .containerBackground(.fill.tertiary, for: .widget)
             }
         }
@@ -139,7 +141,7 @@ struct DocumentWidgetView: View {
 /// this build's signature" are completely different problems that would
 /// otherwise look identical from across the room.
 struct EmptyStateView: View {
-    let family: WidgetDoc.Family
+    let slot: WidgetSlot
     let diagnosis: StoreDiagnosis
     let origin: String
 
@@ -151,7 +153,11 @@ struct EmptyStateView: View {
                 .font(.system(size: 18, weight: .light))
                 .foregroundStyle(brokenStorage ? .orange : Palette.accent)
 
-            Text(brokenStorage ? "Shared storage unreachable" : "No \(family.displayName.lowercased()) widget yet")
+            Text(brokenStorage
+                 ? "Shared storage unreachable"
+                 : slot.index == 1
+                   ? "No \(slot.family.displayName.lowercased()) widget yet"
+                   : "\(slot.displayName) is empty")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Palette.text)
                 .fixedSize(horizontal: false, vertical: true)
@@ -165,7 +171,7 @@ struct EmptyStateView: View {
 
             // The state of the store as the extension sees it. Small and dim:
             // readable when you go looking, ignorable when you are not.
-            Text("\(origin) · \(diagnosis.summary)")
+            Text("\(slot.key) · \(origin) · \(diagnosis.summary)")
                 .font(.system(size: 8, design: .monospaced))
                 .foregroundStyle(Palette.textDim.opacity(0.65))
                 .lineLimit(2)
@@ -178,74 +184,182 @@ struct EmptyStateView: View {
 
 // MARK: - Configurations
 
-// One `Widget` per family. WidgetKit picks by the size placed, and each renders
-// the document assigned to that family in the app.
+// One `Widget` per slot. `StaticConfiguration` cannot be reconfigured once a
+// widget is placed, so several designs at one size means several widget kinds —
+// see `WidgetSlot` and trap 7.
 //
-// One document per family is a real limitation — two medium widgets on the
-// desktop show the same thing — and it is here because the alternative did not
-// work. See trap 7 in SPEC.md.
+// Written out rather than generated from a generic `SlotWidget<Identity>`, which
+// is what this was first. That version compiled and registered, and WidgetKit
+// then never asked any of it for a timeline again — the same silence as trap 7.
+// The shape that demonstrably works is a concrete type with a literal `kind`,
+// so that is the shape, ten times. Repetition that runs beats elegance that
+// does not.
 
 struct FathomSmallWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "FathomSmall",
-                            provider: DocumentProvider(family: .small)) {
+                            provider: DocumentProvider(slot: WidgetSlot(family: .small, index: 1))) {
             DocumentWidgetView(entry: $0)
         }
         .configurationDisplayName("Fathom — Small")
         .description("A widget you designed in Fathom.")
         .supportedFamilies([.systemSmall])
         // Elements are positioned in unit space across the whole box, so the
-        // system's default content margins would silently crop every design by
-        // a few points on each edge.
+        // system's default content margins would silently crop every design.
         .contentMarginsDisabled()
     }
 }
-
+struct FathomSmall2Widget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "FathomSmall2",
+                            provider: DocumentProvider(slot: WidgetSlot(family: .small, index: 2))) {
+            DocumentWidgetView(entry: $0)
+        }
+        .configurationDisplayName("Fathom — Small 2")
+        .description("Another Fathom design at this size. Assign one to it in the app.")
+        .supportedFamilies([.systemSmall])
+        // Elements are positioned in unit space across the whole box, so the
+        // system's default content margins would silently crop every design.
+        .contentMarginsDisabled()
+    }
+}
+struct FathomSmall3Widget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "FathomSmall3",
+                            provider: DocumentProvider(slot: WidgetSlot(family: .small, index: 3))) {
+            DocumentWidgetView(entry: $0)
+        }
+        .configurationDisplayName("Fathom — Small 3")
+        .description("Another Fathom design at this size. Assign one to it in the app.")
+        .supportedFamilies([.systemSmall])
+        // Elements are positioned in unit space across the whole box, so the
+        // system's default content margins would silently crop every design.
+        .contentMarginsDisabled()
+    }
+}
+struct FathomSmall4Widget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "FathomSmall4",
+                            provider: DocumentProvider(slot: WidgetSlot(family: .small, index: 4))) {
+            DocumentWidgetView(entry: $0)
+        }
+        .configurationDisplayName("Fathom — Small 4")
+        .description("Another Fathom design at this size. Assign one to it in the app.")
+        .supportedFamilies([.systemSmall])
+        // Elements are positioned in unit space across the whole box, so the
+        // system's default content margins would silently crop every design.
+        .contentMarginsDisabled()
+    }
+}
 struct FathomMediumWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "FathomMedium",
-                            provider: DocumentProvider(family: .medium)) {
+                            provider: DocumentProvider(slot: WidgetSlot(family: .medium, index: 1))) {
             DocumentWidgetView(entry: $0)
         }
         .configurationDisplayName("Fathom — Medium")
         .description("A widget you designed in Fathom.")
         .supportedFamilies([.systemMedium])
+        // Elements are positioned in unit space across the whole box, so the
+        // system's default content margins would silently crop every design.
         .contentMarginsDisabled()
     }
 }
-
+struct FathomMedium2Widget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "FathomMedium2",
+                            provider: DocumentProvider(slot: WidgetSlot(family: .medium, index: 2))) {
+            DocumentWidgetView(entry: $0)
+        }
+        .configurationDisplayName("Fathom — Medium 2")
+        .description("Another Fathom design at this size. Assign one to it in the app.")
+        .supportedFamilies([.systemMedium])
+        // Elements are positioned in unit space across the whole box, so the
+        // system's default content margins would silently crop every design.
+        .contentMarginsDisabled()
+    }
+}
+struct FathomMedium3Widget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "FathomMedium3",
+                            provider: DocumentProvider(slot: WidgetSlot(family: .medium, index: 3))) {
+            DocumentWidgetView(entry: $0)
+        }
+        .configurationDisplayName("Fathom — Medium 3")
+        .description("Another Fathom design at this size. Assign one to it in the app.")
+        .supportedFamilies([.systemMedium])
+        // Elements are positioned in unit space across the whole box, so the
+        // system's default content margins would silently crop every design.
+        .contentMarginsDisabled()
+    }
+}
 struct FathomLargeWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "FathomLarge",
-                            provider: DocumentProvider(family: .large)) {
+                            provider: DocumentProvider(slot: WidgetSlot(family: .large, index: 1))) {
             DocumentWidgetView(entry: $0)
         }
         .configurationDisplayName("Fathom — Large")
         .description("A widget you designed in Fathom.")
         .supportedFamilies([.systemLarge])
+        // Elements are positioned in unit space across the whole box, so the
+        // system's default content margins would silently crop every design.
         .contentMarginsDisabled()
     }
 }
-
+struct FathomLarge2Widget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "FathomLarge2",
+                            provider: DocumentProvider(slot: WidgetSlot(family: .large, index: 2))) {
+            DocumentWidgetView(entry: $0)
+        }
+        .configurationDisplayName("Fathom — Large 2")
+        .description("Another Fathom design at this size. Assign one to it in the app.")
+        .supportedFamilies([.systemLarge])
+        // Elements are positioned in unit space across the whole box, so the
+        // system's default content margins would silently crop every design.
+        .contentMarginsDisabled()
+    }
+}
 struct FathomExtraLargeWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "FathomExtraLarge",
-                            provider: DocumentProvider(family: .extraLarge)) {
+                            provider: DocumentProvider(slot: WidgetSlot(family: .extraLarge, index: 1))) {
             DocumentWidgetView(entry: $0)
         }
         .configurationDisplayName("Fathom — Extra large")
         .description("A widget you designed in Fathom.")
         .supportedFamilies([.systemExtraLarge])
+        // Elements are positioned in unit space across the whole box, so the
+        // system's default content margins would silently crop every design.
         .contentMarginsDisabled()
     }
 }
 
 @main
 struct FathomWidgetBundle: WidgetBundle {
+    // Split into groups because `WidgetBundleBuilder` tops out at ten.
+    @WidgetBundleBuilder
     var body: some Widget {
+        smallWidgets
+        largerWidgets
+    }
+
+    @WidgetBundleBuilder
+    var smallWidgets: some Widget {
         FathomSmallWidget()
+        FathomSmall2Widget()
+        FathomSmall3Widget()
+        FathomSmall4Widget()
+    }
+
+    @WidgetBundleBuilder
+    var largerWidgets: some Widget {
         FathomMediumWidget()
+        FathomMedium2Widget()
+        FathomMedium3Widget()
         FathomLargeWidget()
+        FathomLarge2Widget()
         FathomExtraLargeWidget()
     }
 }

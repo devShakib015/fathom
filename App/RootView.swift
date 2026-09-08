@@ -50,11 +50,14 @@ struct RootView: View {
             List(selection: $library.selection) {
                 Section("Widgets") {
                     ForEach(library.documents) { doc in
-                        DocumentRow(doc: doc, isActive: library.activeID(for: doc.family) == doc.id)
+                        DocumentRow(doc: doc, slot: library.slot(holding: doc))
                             .tag(doc.id)
                             .contextMenu {
                                 Button("Duplicate") { library.duplicate(doc) }
                                 Button("Show on desktop") { library.makeActive(doc) }
+                                if library.slot(holding: doc) != nil {
+                                    Button("Take off the desktop") { library.remove(doc) }
+                                }
                                 Divider()
                                 Button("Delete", role: .destructive) { library.delete(doc) }
                             }
@@ -181,17 +184,44 @@ struct RootView: View {
             Button { Task { await editor.resolve() } } label: {
                 Label("Refresh data", systemImage: "arrow.clockwise")
             }
-            Button {
-                library.makeActive(editor.doc)
-                editor.pushToDesktop()
+            // A menu rather than a button, because a size can hold several
+            // designs at once and "which one of the three" is the question the
+            // moment there is more than one.
+            Menu {
+                ForEach(WidgetSlot.all(for: editor.doc.family)) { slot in
+                    Button {
+                        library.makeActive(editor.doc, slot: slot)
+                        editor.pushToDesktop()
+                    } label: {
+                        let occupant = library.occupant(of: slot)
+                        if occupant?.id == editor.doc.id {
+                            Label("\(slot.displayName) — this widget", systemImage: "checkmark")
+                        } else if let occupant {
+                            Text("\(slot.displayName) — replace “\(occupant.name)”")
+                        } else {
+                            Text("\(slot.displayName) — empty")
+                        }
+                    }
+                }
+                if library.slot(holding: editor.doc) != nil {
+                    Divider()
+                    Button("Take off the desktop") { library.remove(editor.doc) }
+                }
             } label: {
-                Label("Show on desktop", systemImage: "menubar.dock.rectangle")
+                Label(slotLabel(editor), systemImage: "menubar.dock.rectangle")
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Palette.accent)
+            .menuStyle(.borderlessButton)
+            .frame(width: 190)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 13)
+    }
+
+    private func slotLabel(_ editor: EditorModel) -> String {
+        if let slot = library.slot(holding: editor.doc) {
+            return "On the desktop · \(slot.displayName)"
+        }
+        return "Show on desktop"
     }
 
     private func subtitle(_ editor: EditorModel) -> String {
@@ -203,7 +233,7 @@ struct RootView: View {
 
 private struct DocumentRow: View {
     let doc: WidgetDoc
-    let isActive: Bool
+    let slot: WidgetSlot?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -219,11 +249,16 @@ private struct DocumentRow: View {
                     .foregroundStyle(Palette.textDim)
             }
             Spacer(minLength: 4)
-            if isActive {
-                Circle()
-                    .fill(Palette.accent)
-                    .frame(width: 6, height: 6)
-                    .help("The default for this size")
+            if let slot {
+                // The slot number, not just a dot: with several widgets of one
+                // size on the desktop, which is which is the only useful thing
+                // this indicator can say.
+                Text(slot.index == 1 ? "●" : "\(slot.index)")
+                    .font(.system(size: slot.index == 1 ? 8 : 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(Palette.accent)
+                    .frame(width: 12, height: 12)
+                    .background(slot.index == 1 ? .clear : Palette.accent.opacity(0.16), in: Circle())
+                    .help("On the desktop in \(slot.displayName)")
             }
         }
         .padding(.vertical, 2)

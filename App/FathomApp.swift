@@ -90,8 +90,8 @@ final class Library {
         let existing = Set(DocumentStore.shared.allDocuments().map(\.id))
         for starter in Starters.all where !existing.contains(starter.id) {
             DocumentStore.shared.save(starter)
-            if DocumentStore.shared.activeDocumentID(for: starter.family) == nil {
-                DocumentStore.shared.setActiveDocument(starter.id, for: starter.family)
+            if let free = DocumentStore.shared.firstFreeSlot(for: starter.family) {
+                DocumentStore.shared.setActiveDocument(starter.id, for: free)
             }
         }
     }
@@ -116,8 +116,12 @@ final class Library {
         DocumentStore.shared.save(copy)
         reload()
         selection = copy.id
-        if DocumentStore.shared.activeDocumentID(for: copy.family) == nil {
-            DocumentStore.shared.setActiveDocument(copy.id, for: copy.family)
+        // Straight onto the desktop if there is room, because adding something
+        // from the catalog and then hunting for how to show it is a step nobody
+        // asked for.
+        if let free = DocumentStore.shared.firstFreeSlot(for: copy.family) {
+            DocumentStore.shared.setActiveDocument(copy.id, for: free)
+            DocumentStore.shared.reloadWidgets()
         }
     }
 
@@ -131,20 +135,41 @@ final class Library {
     }
 
     func delete(_ doc: WidgetDoc) {
-        DocumentStore.shared.delete(id: doc.id)
-        if DocumentStore.shared.activeDocumentID(for: doc.family) == doc.id {
-            DocumentStore.shared.setActiveDocument(nil, for: doc.family)
+        if let slot = DocumentStore.shared.slot(holding: doc.id) {
+            DocumentStore.shared.setActiveDocument(nil, for: slot)
         }
+        DocumentStore.shared.delete(id: doc.id)
         reload()
         DocumentStore.shared.reloadWidgets()
     }
 
-    func makeActive(_ doc: WidgetDoc) {
-        DocumentStore.shared.setActiveDocument(doc.id, for: doc.family)
+    /// Puts a document in a slot. With no slot named, the one it already
+    /// occupies, or the first free one of its size.
+    func makeActive(_ doc: WidgetDoc, slot: WidgetSlot? = nil) {
+        let target = slot
+            ?? DocumentStore.shared.slot(holding: doc.id)
+            ?? DocumentStore.shared.firstFreeSlot(for: doc.family)
+            ?? WidgetSlot(family: doc.family, index: 1)
+        DocumentStore.shared.setActiveDocument(doc.id, for: target)
+        reload()
         DocumentStore.shared.reloadWidgets()
     }
 
-    func activeID(for family: WidgetDoc.Family) -> UUID? {
-        DocumentStore.shared.activeDocumentID(for: family)
+    func remove(_ doc: WidgetDoc) {
+        guard let slot = DocumentStore.shared.slot(holding: doc.id) else { return }
+        DocumentStore.shared.setActiveDocument(nil, for: slot)
+        reload()
+        DocumentStore.shared.reloadWidgets()
+    }
+
+    func slot(holding doc: WidgetDoc) -> WidgetSlot? {
+        DocumentStore.shared.slot(holding: doc.id)
+    }
+
+    /// What is in each slot of a size, for the assignment menu.
+    func occupant(of slot: WidgetSlot) -> WidgetDoc? {
+        DocumentStore.shared.activeDocumentID(for: slot).flatMap { id in
+            documents.first { $0.id == id }
+        }
     }
 }

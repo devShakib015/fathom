@@ -281,6 +281,15 @@ nothing here. Reverting to `StaticConfiguration` produced 33 timelines and 25
 renders within five minutes, from the same documents, on the same build of
 macOS.
 
+A second silence, same shape, worth recording beside it: the ten slot widgets
+were first written as one generic `SlotWidget<Identity>` with the `kind` string
+computed from the slot. It compiled and registered, and WidgetKit never asked it
+for a timeline either. Written out as ten concrete structs with literal `kind`
+strings — the shape that already worked — every one of them ran immediately and
+the existing placements survived untouched. **Whatever WidgetKit keys a widget
+on here, a concrete type with a literal kind satisfies it and a generic one does
+not.** Repetition that runs beats elegance that does not.
+
 Two things follow. Widgets placed under one configuration kind do not survive a
 switch to the other, so every attempt costs a re-add. And since Fathom ships
 ad-hoc signed, a fix that needed a paid signature would not help the thing people

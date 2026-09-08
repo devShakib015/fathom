@@ -90,35 +90,64 @@ struct DocumentStore {
 // MARK: - Which document a placed widget shows
 
 extension DocumentStore {
-    /// v1 binds one document per family. That is a real limitation — two small
-    /// widgets on the desktop will show the same thing — and the fix is an
-    /// `AppIntentConfiguration` so each placement can pick its own document.
-    /// Doing it this way first keeps the end-to-end path short enough to prove
-    /// before the editor exists.
+    /// Assignments live in one small file keyed by slot. Slot one's key is the
+    /// bare family name, which is what earlier builds wrote, so nothing has to
+    /// be migrated.
     private var activeFileURL: URL? {
         SharedStore.container?.appendingPathComponent("active.json")
     }
 
-    func activeDocumentID(for family: WidgetDoc.Family) -> UUID? {
-        guard let url = activeFileURL,
-              let data = try? Data(contentsOf: url),
-              let map = try? JSONDecoder().decode([String: UUID].self, from: data)
-        else { return nil }
-        return map[family.rawValue]
+    private func assignments() -> [String: UUID] {
+        guard let url = activeFileURL, let data = try? Data(contentsOf: url) else { return [:] }
+        return (try? JSONDecoder().decode([String: UUID].self, from: data)) ?? [:]
     }
 
-    func activeDocument(for family: WidgetDoc.Family) -> WidgetDoc? {
-        if let id = activeDocumentID(for: family), let doc = document(id: id), doc.family == family {
+    func activeDocumentID(for slot: WidgetSlot) -> UUID? {
+        assignments()[slot.key]
+    }
+
+    /// What a slot renders.
+    ///
+    /// Slot one falls back to any document of the right size, so a widget
+    /// placed before anything was assigned still shows something. The other
+    /// slots do not: falling back there would make every slot show the same
+    /// design, which is the exact problem slots exist to solve.
+    func activeDocument(for slot: WidgetSlot) -> WidgetDoc? {
+        if let id = activeDocumentID(for: slot),
+           let doc = document(id: id),
+           doc.family == slot.family {
             return doc
         }
-        return allDocuments().first { $0.family == family }
+        guard slot.index == 1 else { return nil }
+        return allDocuments().first { $0.family == slot.family }
     }
 
-    func setActiveDocument(_ id: UUID?, for family: WidgetDoc.Family) {
+    func setActiveDocument(_ id: UUID?, for slot: WidgetSlot) {
         guard let url = activeFileURL else { return }
-        var map = (try? JSONDecoder().decode([String: UUID].self, from: Data(contentsOf: url))) ?? [:]
-        map[family.rawValue] = id
-        if id == nil { map.removeValue(forKey: family.rawValue) }
+        var map = assignments()
+        // A document can only be in one slot of its size at a time; putting it
+        // in a second would silently duplicate it on the desktop.
+        if let id {
+            for other in WidgetSlot.all(for: slot.family) where map[other.key] == id {
+                map.removeValue(forKey: other.key)
+            }
+            map[slot.key] = id
+        } else {
+            map.removeValue(forKey: slot.key)
+        }
         try? JSONEncoder().encode(map).write(to: url, options: .atomic)
+    }
+
+    /// Which slot holds this document, if any.
+    func slot(holding id: UUID) -> WidgetSlot? {
+        let map = assignments()
+        return WidgetSlot.everything.first { map[$0.key] == id }
+    }
+
+    /// The first slot of a size with nothing in it, for "show this on the
+    /// desktop" to choose without asking.
+    func firstFreeSlot(for family: WidgetDoc.Family) -> WidgetSlot? {
+        let map = assignments()
+        return WidgetSlot.all(for: family).first { map[$0.key] == nil }
     }
 }

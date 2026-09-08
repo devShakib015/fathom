@@ -15,9 +15,9 @@ import WidgetKit
 
 /// Reading documents of one family out of the store.
 enum DocumentCatalog {
-    /// What a placement renders: the document assigned to that family in the
-    /// app, chosen with "Show on desktop".
-    static func document(for family: WidgetDoc.Family) -> WidgetDoc? {
-        DocumentStore.shared.activeDocument(for: family)
+    /// What a placement renders: the document assigned to that slot in the app,
+    /// chosen with "Show on desktop".
+    static func document(for slot: WidgetSlot) -> WidgetDoc? {
+        DocumentStore.shared.activeDocument(for: slot)
     }
 }
