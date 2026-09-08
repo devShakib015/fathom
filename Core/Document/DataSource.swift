@@ -23,6 +23,31 @@ struct DataSource: Codable, Identifiable, Hashable {
     enum Kind: String, Codable, CaseIterable {
         case system
         case json
+        /// Calendar events. Needs the user's permission, so it is a source you
+        /// add rather than one that is always there.
+        case calendar
+        case reminders
+
+        var displayName: String {
+            switch self {
+            case .system: "This Mac"
+            case .json: "Web endpoint"
+            case .calendar: "Calendar"
+            case .reminders: "Reminders"
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .system: "cpu"
+            case .json: "globe"
+            case .calendar: "calendar"
+            case .reminders: "checklist"
+            }
+        }
+
+        /// Whether adding this source will ask the user for something.
+        var needsPermission: Bool { self == .calendar || self == .reminders }
     }
 
     /// The host this source will contact, if any. Fathom shows these before a
@@ -36,5 +61,16 @@ struct DataSource: Codable, Identifiable, Hashable {
 
     static func system() -> DataSource {
         DataSource(name: "System", kind: .system)
+    }
+
+    /// The fields this source offers, for the editor's browser before anything
+    /// has been read.
+    var schema: [(path: String, label: String)] {
+        switch kind {
+        case .system: SystemSource.schemaDescription
+        case .calendar: CalendarSource.eventSchema
+        case .reminders: CalendarSource.reminderSchema
+        case .json: []
+        }
     }
 }

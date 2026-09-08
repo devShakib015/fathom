@@ -175,6 +175,20 @@ enum DataResolver {
             case .system:
                 out.trees[source.id] = SystemSource.snapshot(now: now)
 
+            case .calendar:
+                let tree = await CalendarSource.events(now: now)
+                out.trees[source.id] = tree
+                if tree[path: "authorised"] == .bool(false) {
+                    out.failures[source.id] = "Fathom does not have calendar access."
+                }
+
+            case .reminders:
+                let tree = await CalendarSource.reminders(now: now)
+                out.trees[source.id] = tree
+                if tree[path: "authorised"] == .bool(false) {
+                    out.failures[source.id] = "Fathom does not have reminders access."
+                }
+
             case .json:
                 guard let string = source.url,
                       let url = URL(string: string),

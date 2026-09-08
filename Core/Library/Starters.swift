@@ -8,7 +8,7 @@ import Foundation
 /// the moment somebody opened it to see how it was made.
 enum Starters {
 
-    static var all: [WidgetDoc] { [systemSmall, refreshFloorMedium, weatherMedium] }
+    static var all: [WidgetDoc] { [systemSmall, refreshFloorMedium, weatherMedium, vitalsMedium, weekAheadLarge] }
 
     /// Stable ids so that reinstalling Fathom updates the starters in place
     /// rather than duplicating them beside the user's edited copies.
@@ -388,6 +388,188 @@ enum Starters {
                                              keyPath: "current.relative_humidity_2m",
                                              format: Format(kind: .percent, prefix: "humidity "),
                                              fallback: "humidity —")),
+            ],
+            sources: [system, weather])
+    }
+
+    // MARK: - Mac vitals, medium
+
+    /// What the machine is doing, on a 64-second tick.
+    ///
+    /// CPU and network are rates rather than levels: the kernel reports
+    /// cumulative counters, so the number comes from the difference between
+    /// this reload and the last. That arithmetic only means anything because
+    /// the interval is regular and short — the same widget on iOS would be
+    /// averaging over however many hours the system felt like waiting.
+    static var vitalsMedium: WidgetDoc {
+        let source = systemSource()
+
+        func row(_ name: String, y: Double, label: String, barPath: String,
+                 valuePath: String, valueFormat: Format, tint: String) -> [Element] {
+            [
+                Element(name: "\(name) label", kind: .text,
+                        frame: Frame(x: 0.05, y: y - 0.055, width: 0.17, height: 0.11),
+                        style: Style(font: FontSpec(size: 11, weight: .medium), foreground: .dim),
+                        text: label),
+                Element(name: "\(name) bar", kind: .bar,
+                        frame: Frame(x: 0.24, y: y - 0.022, width: 0.48, height: 0.045),
+                        style: Style(foreground: ColorSpec(tint),
+                                     fill: ColorSpec(tint, opacity: 0.15)),
+                        text: "0",
+                        binding: DataBinding(sourceID: source.id, keyPath: barPath,
+                                             format: Format(kind: .percent), fallback: "0")),
+                Element(name: "\(name) value", kind: .text,
+                        frame: Frame(x: 0.74, y: y - 0.062, width: 0.21, height: 0.12),
+                        style: Style(font: FontSpec(size: 11, weight: .semibold),
+                                     foreground: .text, alignment: .trailing),
+                        text: "—",
+                        binding: DataBinding(sourceID: source.id, keyPath: valuePath,
+                                             format: valueFormat, fallback: "—")),
+            ]
+        }
+
+        var elements: [Element] = [
+            Element(name: "Title", kind: .text,
+                    frame: Frame(x: 0.05, y: 0.06, width: 0.45, height: 0.11),
+                    style: Style(font: FontSpec(size: 9, weight: .semibold), foreground: .dim),
+                    text: "THIS MAC"),
+            Element(name: "Uptime", kind: .text,
+                    frame: Frame(x: 0.52, y: 0.06, width: 0.43, height: 0.11),
+                    style: Style(font: FontSpec(size: 9), foreground: .dim, alignment: .trailing),
+                    text: "up —",
+                    binding: DataBinding(sourceID: source.id, keyPath: "system.uptime",
+                                         format: Format(kind: .duration, prefix: "up "),
+                                         fallback: "up —")),
+        ]
+        elements += row("CPU", y: 0.34, label: "CPU", barPath: "cpu.usage",
+                        valuePath: "cpu.usage", valueFormat: Format(kind: .percent),
+                        tint: Palette.accentHex)
+        elements += row("Memory", y: 0.58, label: "Memory", barPath: "memory.usedFraction",
+                        valuePath: "memory.usedFraction", valueFormat: Format(kind: .percent),
+                        tint: Palette.accentAltHex)
+        elements += row("Disk", y: 0.82, label: "Disk", barPath: "disk.usedFraction",
+                        valuePath: "disk.free", valueFormat: Format(kind: .bytes),
+                        tint: Palette.accentHex)
+
+        return WidgetDoc(
+            id: UUID(uuidString: "5B1F0F1A-0000-4000-A000-0000000000A4")!,
+            name: "Mac vitals",
+            family: .medium,
+            background: .glass,
+            elements: elements,
+            sources: [source])
+    }
+
+    // MARK: - Week ahead, large
+
+    /// Seven days drawn by three elements.
+    ///
+    /// The repeater walks `daily.time`; each column reaches the matching
+    /// temperature with `at(field(...), index)`, and the bar's height is that
+    /// temperature normalised against the week's own range. Without expressions
+    /// this widget needs twenty-one elements and a person to keep them in step.
+    static var weekAheadLarge: WidgetDoc {
+        let system = systemSource()
+        let weather = DataSource(
+            id: UUID(uuidString: "5B1F0F1A-0000-4000-A000-000000000003")!,
+            name: "Open-Meteo",
+            kind: .json,
+            url: "https://api.open-meteo.com/v1/forecast?latitude=25.2048&longitude=55.2708"
+               + "&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max"
+               + "&forecast_days=7&timezone=auto")
+
+        let highs = "field(\"daily.temperature_2m_max\")"
+
+        return WidgetDoc(
+            id: UUID(uuidString: "5B1F0F1A-0000-4000-A000-0000000000A5")!,
+            name: "Week ahead",
+            family: .large,
+            background: .glass,
+            elements: [
+                Element(name: "Caption", kind: .text,
+                        frame: Frame(x: 0.06, y: 0.055, width: 0.5, height: 0.05),
+                        style: Style(font: FontSpec(size: 9, weight: .semibold), foreground: .dim),
+                        text: "WEEK AHEAD"),
+
+                Element(name: "Now", kind: .text,
+                        frame: Frame(x: 0.055, y: 0.10, width: 0.5, height: 0.13),
+                        style: Style(font: FontSpec(size: 34, weight: .semibold, design: .rounded),
+                                     foreground: .text),
+                        text: "36°",
+                        binding: DataBinding(sourceID: weather.id,
+                                             keyPath: "current.temperature_2m",
+                                             format: Format(kind: .number, suffix: "°"),
+                                             fallback: "—")),
+
+                Element(name: "Sky", kind: .symbol,
+                        frame: Frame(x: 0.79, y: 0.095, width: 0.13, height: 0.10),
+                        style: Style(foreground: .accent, alignment: .center),
+                        text: "sun.max.fill",
+                        binding: DataBinding(
+                            sourceID: weather.id,
+                            keyPath: "current.weather_code",
+                            expression: "map(value, 0, \"sun.max.fill\", 1, \"sun.max.fill\", "
+                                      + "2, \"cloud.sun.fill\", 3, \"cloud.fill\", "
+                                      + "45, \"cloud.fog.fill\", 61, \"cloud.rain.fill\", "
+                                      + "95, \"cloud.bolt.rain.fill\", \"cloud.fill\")",
+                            format: Format(kind: .text),
+                            fallback: "questionmark")),
+
+                Element(name: "Rule", kind: .divider,
+                        frame: Frame(x: 0.06, y: 0.26, width: 0.88, height: 0.01),
+                        style: Style(foreground: ColorSpec(Palette.textDimHex, opacity: 0.22),
+                                     lineWidth: 1)),
+
+                Element(name: "Seven days", kind: .repeater,
+                        frame: Frame(x: 0.05, y: 0.32, width: 0.90, height: 0.56),
+                        style: Style(lineWidth: 3),
+                        binding: DataBinding(sourceID: weather.id, keyPath: "daily.time",
+                                             format: Format(kind: .text), fallback: ""),
+                        children: [
+                            Element(name: "High", kind: .text,
+                                    frame: Frame(x: 0, y: 0, width: 1, height: 0.13),
+                                    style: Style(font: FontSpec(size: 10, weight: .semibold),
+                                                 foreground: .text, alignment: .center),
+                                    text: "—",
+                                    binding: DataBinding(
+                                        sourceID: weather.id, keyPath: "",
+                                        expression: "at(\(highs), index)",
+                                        format: Format(kind: .number, suffix: "°"),
+                                        fallback: "—")),
+
+                            Element(name: "Column", kind: .bar,
+                                    frame: Frame(x: 0.26, y: 0.16, width: 0.48, height: 0.68),
+                                    style: Style(foreground: ColorSpec(Palette.accentHex),
+                                                 fill: ColorSpec(Palette.accentHex, opacity: 0.12),
+                                                 cornerRadius: 4,
+                                                 gradientEnd: ColorSpec(Palette.accentAltHex)),
+                                    text: "0",
+                                    binding: DataBinding(
+                                        sourceID: weather.id, keyPath: "",
+                                        // Normalised against the week's own
+                                        // range, then floored so the coolest
+                                        // day is a short bar rather than none.
+                                        expression: "coalesce((at(\(highs), index) - lowest(\(highs))) "
+                                                  + "/ (highest(\(highs)) - lowest(\(highs))), 0.5) "
+                                                  + "* 0.82 + 0.18",
+                                        format: Format(kind: .percent),
+                                        fallback: "0")),
+
+                            Element(name: "Day", kind: .text,
+                                    frame: Frame(x: 0, y: 0.87, width: 1, height: 0.13),
+                                    style: Style(font: FontSpec(size: 9, weight: .medium),
+                                                 foreground: .dim, alignment: .center),
+                                    text: "—",
+                                    binding: DataBinding(
+                                        sourceID: weather.id, keyPath: "",
+                                        format: Format(kind: .date, dateStyle: .shortWeekday),
+                                        fallback: "—")),
+                        ]),
+
+                Element(name: "Footer", kind: .text,
+                        frame: Frame(x: 0.06, y: 0.925, width: 0.88, height: 0.05),
+                        style: Style(font: FontSpec(size: 8), foreground: .dim, alignment: .center),
+                        text: "Dubai · Open-Meteo · refreshed every 64 s"),
             ],
             sources: [system, weather])
     }

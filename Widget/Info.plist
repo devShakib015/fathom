@@ -22,10 +22,14 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Fathom shows your upcoming events on a widget you designed. Nothing leaves this Mac.</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.widgetkit-extension</string>
 	</dict>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Fathom shows your due reminders on a widget you designed. Nothing leaves this Mac.</string>
 </dict>
 </plist>

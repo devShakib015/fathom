@@ -42,9 +42,8 @@ struct InspectorView: View {
                         Divider().overlay(Palette.hairline)
                         DocumentInspector(model: model)
                     case .data:
-                        SourcesInspector(model: model) { elementID, keyPath, value in
-                            guard let source = model.doc.sources.first(where: { $0.kind == .json }) else { return }
-                            model.bind(element: elementID, to: keyPath, value: value, source: source.id)
+                        SourcesInspector(model: model) { elementID, sourceID, keyPath, value in
+                            model.bind(element: elementID, to: keyPath, value: value, source: sourceID)
                         }
                     }
                 }

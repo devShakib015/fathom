@@ -64,17 +64,18 @@ struct BindingInspector: View {
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
             }
-            // Until the JSON tree browser lands, the system source's own fields
-            // are offered as a menu. Nobody should have to guess a key path.
-            if model.doc.source(b.sourceID)?.kind == .system {
+            // Sources with a known shape list their own fields. Nobody should
+            // have to guess a key path, and for a web endpoint the tree browser
+            // on the Data tab is the equivalent.
+            if let schema = model.doc.source(b.sourceID)?.schema, !schema.isEmpty {
                 Menu {
-                    ForEach(SystemSource.schemaDescription, id: \.path) { entry in
+                    ForEach(schema, id: \.path) { entry in
                         Button("\(entry.path)  —  \(entry.label)") {
                             model.update(element.id, "Key path") { $0.binding?.keyPath = entry.path }
                         }
                     }
                 } label: {
-                    Label("Browse system fields", systemImage: "list.bullet.indent")
+                    Label("Browse fields", systemImage: "list.bullet.indent")
                         .font(.system(size: 10))
                 }
                 .menuStyle(.borderlessButton)

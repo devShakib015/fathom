@@ -1,68 +1,124 @@
 import SwiftUI
+import EventKit
 
-/// The data sources panel: add a URL, fetch it, and browse what came back.
+/// The data sources panel: add a source, fetch it, and browse what came back.
 ///
-/// This is where the reload finding cashes out. A widget bound to a JSON
-/// endpoint on a 64-second floor is a different category of object from
-/// anything an iOS widget builder can offer, and none of that is visible until
-/// somebody can paste their own URL and see their own numbers.
+/// This is where the reload finding cashes out. A widget bound to a live source
+/// on a 64-second floor is a different category of object from anything an iOS
+/// widget builder can offer, and none of that is visible until somebody can
+/// point it at their own data and see their own numbers.
 struct SourcesInspector: View {
     @Bindable var model: EditorModel
-    /// The element a dragged field should bind to, if one is selected.
-    var onBind: (UUID, String, DataValue) -> Void
+    /// Binds a field to an element: element, source, key path, sample value.
+    var onBind: (UUID, UUID, String, DataValue) -> Void
 
     @State private var newURL: String = ""
+    @State private var browsing: UUID?
+    @State private var permissionDenied: DataSource.Kind?
+
+    private var browsedSource: DataSource? {
+        model.doc.sources.first { $0.id == browsing } ?? model.doc.sources.last
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             InspectorSection(title: "Data sources") {
                 ForEach(model.doc.sources) { source in
-                    SourceRow(model: model, source: source)
+                    SourceRow(model: model, source: source,
+                              isBrowsing: browsedSource?.id == source.id) {
+                        browsing = source.id
+                    }
                 }
-                addRow
+                addControls
+                if let denied = permissionDenied {
+                    Label("macOS refused \(denied.displayName.lowercased()) access. Grant it in System Settings ▸ Privacy & Security.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
-            if let source = model.doc.sources.first(where: { $0.kind == .json }) {
+            if let source = browsedSource {
                 Divider().overlay(Palette.hairline)
                 TreeBrowser(model: model, source: source, onBind: onBind)
             }
         }
     }
 
-    private var addRow: some View {
-        VStack(alignment: .leading, spacing: 5) {
+    // MARK: - Adding
+
+    private var addControls: some View {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 TextField("https://api.example.com/data.json", text: $newURL)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11))
-                    .onSubmit(add)
-                Button("Add", action: add)
+                    .onSubmit(addEndpoint)
+                Button("Add", action: addEndpoint)
                     .disabled(URL(string: newURL)?.host == nil)
             }
-            Text("Fathom fetches this only when you ask, and when a widget using it reloads. Nothing else leaves your Mac.")
+
+            HStack(spacing: 6) {
+                ForEach(DataSource.Kind.allCases.filter { $0 != .json }, id: \.self) { kind in
+                    Button {
+                        add(kind)
+                    } label: {
+                        Label(kind.displayName, systemImage: kind.symbol)
+                            .font(.system(size: 10))
+                    }
+                    .disabled(model.doc.sources.contains { $0.kind == kind })
+                }
+            }
+
+            Text("Endpoints are fetched only when you ask and when a widget using them reloads. Calendar and reminders are read on this Mac and never sent anywhere.")
                 .font(.system(size: 10))
                 .foregroundStyle(Palette.textDim.opacity(0.8))
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private func add() {
+    private func addEndpoint() {
         let trimmed = newURL.trimmingCharacters(in: .whitespaces)
         guard let url = URL(string: trimmed), let host = url.host else { return }
-        model.addSource(DataSource(name: host, kind: .json, url: trimmed))
+        let source = DataSource(name: host, kind: .json, url: trimmed)
+        model.addSource(source)
+        browsing = source.id
         newURL = ""
         Task { await model.resolve() }
+    }
+
+    /// Asks for permission before adding, not after.
+    ///
+    /// A source that appears in the list and then reports "no access" looks
+    /// like a bug; asking first means the only sources on screen are ones that
+    /// can actually be read.
+    private func add(_ kind: DataSource.Kind) {
+        Task { @MainActor in
+            permissionDenied = nil
+            if kind.needsPermission {
+                let entity: EKEntityType = kind == .calendar ? .event : .reminder
+                let granted = await CalendarSource.requestAccess(to: entity)
+                guard granted else { permissionDenied = kind; return }
+            }
+            let source = DataSource(name: kind.displayName, kind: kind)
+            model.addSource(source)
+            browsing = source.id
+            await model.resolve()
+        }
     }
 }
 
 private struct SourceRow: View {
     @Bindable var model: EditorModel
     let source: DataSource
+    let isBrowsing: Bool
+    var onSelect: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: source.kind == .system ? "cpu" : "globe")
-                .foregroundStyle(Palette.accent)
+            Image(systemName: source.kind.symbol)
+                .foregroundStyle(isBrowsing ? Palette.accent : Palette.textDim)
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 1) {
                 Text(source.name)
@@ -75,7 +131,7 @@ private struct SourceRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 4)
-            if source.kind == .json {
+            if source.kind != .system {
                 Button {
                     model.removeSource(source.id)
                 } label: {
@@ -87,13 +143,23 @@ private struct SourceRow: View {
             }
         }
         .padding(.vertical, 3)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
+        .background(isBrowsing ? Palette.accent.opacity(0.09) : .clear,
+                    in: RoundedRectangle(cornerRadius: 5))
     }
 
     private var status: String {
         if let failure = model.data.failures[source.id] { return failure }
-        if source.kind == .system { return "Local, never leaves this Mac" }
-        if model.data.trees[source.id] != nil { return model.data.isStale ? "Cached" : source.host ?? "" }
-        return source.host ?? "No URL"
+        switch source.kind {
+        case .system, .calendar, .reminders:
+            return "Read on this Mac, never sent anywhere"
+        case .json:
+            if model.data.trees[source.id] != nil {
+                return model.data.isStale ? "Cached" : source.host ?? ""
+            }
+            return source.host ?? "No URL"
+        }
     }
 }
 
@@ -105,7 +171,7 @@ private struct SourceRow: View {
 private struct TreeBrowser: View {
     @Bindable var model: EditorModel
     let source: DataSource
-    var onBind: (UUID, String, DataValue) -> Void
+    var onBind: (UUID, UUID, String, DataValue) -> Void
 
     @State private var expanded: Set<String> = [""]
 
@@ -123,7 +189,7 @@ private struct TreeBrowser: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     TreeNode(label: source.name, path: "", value: root, depth: 0,
-                             expanded: $expanded, model: model, onBind: onBind)
+                             expanded: $expanded, model: model, sourceID: source.id, onBind: onBind)
                 }
                 .padding(.vertical, 4)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -153,7 +219,8 @@ private struct TreeNode: View {
     let depth: Int
     @Binding var expanded: Set<String>
     @Bindable var model: EditorModel
-    var onBind: (UUID, String, DataValue) -> Void
+    let sourceID: UUID
+    var onBind: (UUID, UUID, String, DataValue) -> Void
 
     private var isOpen: Bool { expanded.contains(path) }
 
@@ -163,7 +230,8 @@ private struct TreeNode: View {
             if isOpen {
                 ForEach(children, id: \.path) { child in
                     TreeNode(label: child.label, path: child.path, value: child.value,
-                             depth: depth + 1, expanded: $expanded, model: model, onBind: onBind)
+                             depth: depth + 1, expanded: $expanded, model: model,
+                             sourceID: sourceID, onBind: onBind)
                 }
             }
         }
@@ -202,7 +270,7 @@ private struct TreeNode: View {
         .onTapGesture {
             if value.isLeaf {
                 guard let element = model.focusedElement else { return }
-                onBind(element.id, path, value)
+                onBind(element.id, sourceID, path, value)
             } else {
                 if isOpen { expanded.remove(path) } else { expanded.insert(path) }
             }

@@ -53,6 +53,9 @@ targets:
           - /Users/Shared/Fathom/
         # The app fetches a user's JSON endpoint to show them its tree.
         com.apple.security.network.client: true
+        # Only used when a document adds a calendar or reminders source. The
+        # entitlement makes the ask possible; it does not make it happen.
+        com.apple.security.personal-information.calendars: true
     info:
       path: App/Info.plist
       properties:
@@ -62,6 +65,8 @@ targets:
         LSMinimumSystemVersion: "26.0"
         LSApplicationCategoryType: public.app-category.utilities
         NSHumanReadableCopyright: "MIT licensed. Free, every feature, forever."
+        NSCalendarsFullAccessUsageDescription: "Fathom shows your upcoming events on a widget you designed. Nothing leaves this Mac."
+        NSRemindersFullAccessUsageDescription: "Fathom shows your due reminders on a widget you designed. Nothing leaves this Mac."
     dependencies:
       - target: FathomWidget
         embed: true
@@ -85,6 +90,10 @@ targets:
         # A widget that renders live data has to be able to reach the network
         # itself; the host app is not running when the timeline reloads.
         com.apple.security.network.client: true
+        # The extension reads the calendar at reload time, so it needs the
+        # entitlement too. Whether the app's permission grant reaches an
+        # extension is a question to measure rather than assume.
+        com.apple.security.personal-information.calendars: true
     info:
       path: Widget/Info.plist
       properties:
@@ -92,5 +101,7 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSMinimumSystemVersion: "26.0"
+        NSCalendarsFullAccessUsageDescription: "Fathom shows your upcoming events on a widget you designed. Nothing leaves this Mac."
+        NSRemindersFullAccessUsageDescription: "Fathom shows your due reminders on a widget you designed. Nothing leaves this Mac."
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension

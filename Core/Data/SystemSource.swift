@@ -10,10 +10,33 @@ import IOKit.ps
 enum SystemSource {
 
     static func snapshot(now: Date = Date()) -> DataValue {
-        .ordered([
+        // Counters are read once and stored, so the next reload can turn them
+        // into rates. Done here rather than per-branch so one reload writes one
+        // sample no matter how many branches ask for a rate.
+        let previous = CounterSamples.previous()
+        let ticks = HostMetrics.cpuTicks()
+        let traffic = HostMetrics.networkBytes()
+        var counters: [String: Double] = [
+            "net.in": traffic.received,
+            "net.out": traffic.sent,
+        ]
+        if let ticks {
+            counters["cpu.user"] = ticks.user
+            counters["cpu.system"] = ticks.system
+            counters["cpu.idle"] = ticks.idle
+            counters["cpu.nice"] = ticks.nice
+        }
+        CounterSamples.record(counters, at: now)
+
+        return .ordered([
             ("date", dateBranch(now)),
             ("battery", batteryBranch()),
             ("disk", diskBranch()),
+            ("cpu", cpuBranch(ticks, now: now, previous: previous)),
+            ("memory", memoryBranch()),
+            ("network", networkBranch(traffic, now: now, previous: previous)),
+            ("system", hostBranch(now)),
+            ("devices", devicesBranch()),
         ])
     }
 
@@ -32,7 +55,124 @@ enum SystemSource {
             ("disk.used", "Used bytes"),
             ("disk.freeFraction", "Free space, 0…1"),
             ("disk.usedFraction", "Used space, 0…1"),
+            ("cpu.usage", "Busy fraction since the last reload, 0…1"),
+            ("cpu.user", "User time, 0…1"),
+            ("cpu.system", "System time, 0…1"),
+            ("cpu.cores", "Number of cores"),
+            ("memory.used", "Bytes in use"),
+            ("memory.total", "Installed bytes"),
+            ("memory.usedFraction", "Memory in use, 0…1"),
+            ("memory.compressed", "Compressed bytes"),
+            ("network.inPerSecond", "Bytes received per second"),
+            ("network.outPerSecond", "Bytes sent per second"),
+            ("network.totalIn", "Bytes received since boot"),
+            ("network.totalOut", "Bytes sent since boot"),
+            ("system.uptime", "Seconds since boot"),
+            ("system.bootedAt", "When this Mac started"),
+            ("system.thermal", "nominal, fair, serious or critical"),
+            ("system.lowPowerMode", "Low Power Mode is on"),
+            ("system.name", "This Mac's name"),
+            ("system.osVersion", "macOS version"),
+            ("devices", "Bluetooth input devices, a list"),
+            ("devices[0].name", "First device's name"),
+            ("devices[0].percent", "First device's charge, 0…1"),
         ]
+    }
+
+    // MARK: - Branches added with the wider system scopes
+
+    /// CPU is a rate, not a level: the kernel reports cumulative ticks, so the
+    /// number only means anything relative to the previous reload. Before a
+    /// second sample exists every field is null and a bound element shows its
+    /// fallback, which is honest — there genuinely is no answer yet.
+    private static func cpuBranch(_ ticks: (user: Double, system: Double, idle: Double, nice: Double)?,
+                                  now: Date,
+                                  previous: CounterSamples.Sample?) -> DataValue {
+        let cores = Double(ProcessInfo.processInfo.processorCount)
+        guard let ticks, let sample = previous,
+              let user = sample.values["cpu.user"],
+              let system = sample.values["cpu.system"],
+              let idle = sample.values["cpu.idle"],
+              let nice = sample.values["cpu.nice"]
+        else {
+            return .ordered([
+                ("usage", .null), ("user", .null), ("system", .null),
+                ("idle", .null), ("cores", .number(cores)),
+            ])
+        }
+
+        let dUser = ticks.user - user, dSystem = ticks.system - system
+        let dIdle = ticks.idle - idle, dNice = ticks.nice - nice
+        let total = dUser + dSystem + dIdle + dNice
+        guard total > 0 else {
+            return .ordered([
+                ("usage", .null), ("user", .null), ("system", .null),
+                ("idle", .null), ("cores", .number(cores)),
+            ])
+        }
+        return .ordered([
+            ("usage", .number((dUser + dSystem + dNice) / total)),
+            ("user", .number(dUser / total)),
+            ("system", .number(dSystem / total)),
+            ("idle", .number(dIdle / total)),
+            ("cores", .number(cores)),
+        ])
+    }
+
+    private static func memoryBranch() -> DataValue {
+        guard let memory = HostMetrics.memory() else {
+            return .ordered([("used", .null), ("total", .null), ("free", .null),
+                             ("compressed", .null), ("wired", .null), ("usedFraction", .null)])
+        }
+        return .ordered([
+            ("used", .number(memory.used)),
+            ("total", .number(memory.total)),
+            ("free", .number(memory.free)),
+            ("compressed", .number(memory.compressed)),
+            ("wired", .number(memory.wired)),
+            ("usedFraction", .number(memory.usedFraction)),
+        ])
+    }
+
+    private static func networkBranch(_ traffic: (received: Double, sent: Double),
+                                      now: Date,
+                                      previous: CounterSamples.Sample?) -> DataValue {
+        let inRate = CounterSamples.rate("net.in", now: traffic.received, at: now, previous: previous)
+        let outRate = CounterSamples.rate("net.out", now: traffic.sent, at: now, previous: previous)
+        return .ordered([
+            ("inPerSecond", inRate.map { .number($0) } ?? .null),
+            ("outPerSecond", outRate.map { .number($0) } ?? .null),
+            ("totalIn", .number(traffic.received)),
+            ("totalOut", .number(traffic.sent)),
+        ])
+    }
+
+    private static func hostBranch(_ now: Date) -> DataValue {
+        let info = ProcessInfo.processInfo
+        let booted = HostMetrics.bootedAt()
+        let thermal: String = switch info.thermalState {
+        case .nominal: "nominal"
+        case .fair: "fair"
+        case .serious: "serious"
+        case .critical: "critical"
+        @unknown default: "unknown"
+        }
+        return .ordered([
+            ("uptime", booted.map { .number(now.timeIntervalSince($0)) } ?? .null),
+            ("bootedAt", booted.map { .date($0) } ?? .null),
+            ("thermal", .string(thermal)),
+            ("lowPowerMode", .bool(info.isLowPowerModeEnabled)),
+            ("name", .string(Host.current().localizedName ?? info.hostName)),
+            ("osVersion", .string(info.operatingSystemVersionString)),
+        ])
+    }
+
+    /// A list rather than named fields, so a repeater can draw one row per
+    /// device without the document knowing how many there are.
+    private static func devicesBranch() -> DataValue {
+        .array(HostMetrics.bluetoothDevices().map { device in
+            .ordered([("name", .string(device.name)), ("percent", .number(device.percent))])
+        })
     }
 
     private static func dateBranch(_ now: Date) -> DataValue {
