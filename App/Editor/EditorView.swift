@@ -87,10 +87,22 @@ struct ElementPalette: View {
     }
 }
 
-/// Draw order, front at the top — which is the opposite of the array and the
-/// same as every other design tool.
+/// Draw order, front at the top — the opposite of the array and the same as
+/// every other design tool. Containers show their contents indented beneath
+/// them, because a repeater whose children are invisible here is a repeater
+/// nobody can edit.
 struct LayerList: View {
     @Bindable var model: EditorModel
+
+    /// Front-first, with each container's children directly under it.
+    private var rows: [(element: Element, depth: Int)] {
+        func walk(_ elements: [Element], depth: Int) -> [(Element, Int)] {
+            elements.reversed().flatMap { element in
+                [(element, depth)] + walk(element.children, depth: depth + 1)
+            }
+        }
+        return walk(model.doc.elements, depth: 0)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -100,7 +112,7 @@ struct LayerList: View {
                     .foregroundStyle(Palette.textDim)
                     .tracking(0.8)
                 Spacer()
-                Text("\(model.doc.elements.count)")
+                Text("\(model.doc.elements.allIDs().count)")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(Palette.textDim)
             }
@@ -112,16 +124,18 @@ struct LayerList: View {
                 get: { model.selection },
                 set: { model.selection = $0 }
             )) {
-                ForEach(model.doc.elements.reversed()) { element in
-                    LayerRow(element: element, isBound: element.binding != nil)
-                        .tag(element.id)
+                ForEach(rows, id: \.element.id) { row in
+                    LayerRow(element: row.element, depth: row.depth)
+                        .tag(row.element.id)
                         .contextMenu {
-                            Button("Bring to Front") { model.move(element.id, toFront: true) }
-                            Button("Send to Back") { model.move(element.id, toFront: false) }
+                            Button("Bring to Front") { model.move(row.element.id, toFront: true) }
+                            Button("Send to Back") { model.move(row.element.id, toFront: false) }
                             Divider()
-                            Button("Duplicate") { model.select(element.id); model.duplicateSelected() }
+                            Button("Duplicate") {
+                                model.select(row.element.id); model.duplicateSelected()
+                            }
                             Button("Delete", role: .destructive) {
-                                model.select(element.id); model.deleteSelected()
+                                model.select(row.element.id); model.deleteSelected()
                             }
                         }
                 }
@@ -134,19 +148,35 @@ struct LayerList: View {
 
 private struct LayerRow: View {
     let element: Element
-    let isBound: Bool
+    let depth: Int
 
     var body: some View {
         HStack(spacing: 7) {
+            if depth > 0 {
+                // A rule rather than plain indentation: at one glance it says
+                // "this belongs to the thing above", which matters most for a
+                // repeater's template.
+                Rectangle()
+                    .fill(Palette.accentAlt.opacity(0.4))
+                    .frame(width: 1)
+                    .padding(.leading, CGFloat(depth - 1) * 9)
+                    .padding(.vertical, 1)
+            }
             Image(systemName: element.kind.paletteSymbol)
                 .font(.system(size: 10))
-                .foregroundStyle(Palette.textDim)
+                .foregroundStyle(element.isContainer ? Palette.accentAlt : Palette.textDim)
                 .frame(width: 14)
             Text(element.displayName)
                 .font(.system(size: 11))
                 .lineLimit(1)
             Spacer(minLength: 4)
-            if isBound {
+            if element.visibleWhen?.isEmpty == false {
+                Image(systemName: "eye")
+                    .font(.system(size: 8))
+                    .foregroundStyle(Palette.textDim)
+                    .help("Only shown when a condition holds")
+            }
+            if element.binding != nil {
                 Image(systemName: "bolt.horizontal.fill")
                     .font(.system(size: 8))
                     .foregroundStyle(Palette.accent)

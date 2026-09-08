@@ -39,14 +39,17 @@ final class EditorModel {
 
     // MARK: - Selection
 
+    /// Selection reaches inside containers: a repeater's child is selectable,
+    /// inspectable and draggable exactly like a top-level element, because ids
+    /// are unique across the tree and every operation addresses them by id.
     var selectedElements: [Element] {
-        doc.elements.filter { selection.contains($0.id) }
+        doc.flattenedElements.map(\.element).filter { selection.contains($0.id) }
     }
 
     /// The inspector edits one element at a time. With several selected it
     /// follows the last one in document order, which is the one drawn on top.
     var focusedElement: Element? {
-        doc.elements.last { selection.contains($0.id) }
+        doc.flattenedElements.map(\.element).last { selection.contains($0.id) }
     }
 
     func select(_ id: UUID, add: Bool = false) {
@@ -57,7 +60,7 @@ final class EditorModel {
         }
     }
 
-    func selectAll() { selection = Set(doc.elements.map(\.id)) }
+    func selectAll() { selection = doc.elements.allIDs() }
     func deselect() { selection = [] }
 
     // MARK: - Editing
@@ -126,51 +129,62 @@ final class EditorModel {
 
     // MARK: - Elements
 
+    /// Adds into whatever container is selected, or beside it, or at the top
+    /// level. Selecting a repeater and pressing Text should put the text in the
+    /// repeater — anything else means containers can only ever be built by the
+    /// catalog.
     func add(_ kind: Element.Kind) {
-        let element = Element.new(kind, in: doc)
-        edit("Add \(kind.displayName)") { $0.elements.append(element) }
+        let parent = doc.containerForInsertion(near: selection.first)
+        var element = Element.new(kind, in: doc)
+        if parent != nil {
+            // Inside a container the unit box is the container's own, so the
+            // fanning offset used at the top level would push it off the edge.
+            element.frame = Frame(x: 0.05, y: 0.05, width: 0.9, height: 0.3)
+        }
+        edit("Add \(kind.displayName)") { $0.elements.insert(element, into: parent) }
         selection = [element.id]
     }
 
     func update(_ id: UUID, _ name: String, coalescing: Bool = false, _ change: (inout Element) -> Void) {
-        guard let index = doc.elements.firstIndex(where: { $0.id == id }) else { return }
-        edit(name, coalescing: coalescing) { change(&$0.elements[index]) }
+        guard doc.element(id) != nil else { return }
+        edit(name, coalescing: coalescing) { $0.elements.update(id, change) }
     }
 
     func updateSelected(_ name: String, _ change: (inout Element) -> Void) {
         let ids = selection
         guard !ids.isEmpty else { return }
         edit(name) { doc in
-            for index in doc.elements.indices where ids.contains(doc.elements[index].id) {
-                change(&doc.elements[index])
-            }
+            for id in ids { doc.elements.update(id, change) }
         }
     }
 
     func deleteSelected() {
         guard !selection.isEmpty else { return }
         let ids = selection
-        edit("Delete") { $0.elements.removeAll { ids.contains($0.id) } }
+        // Removing a container takes its contents with it; leaving the children
+        // behind would orphan them into a document that cannot draw them.
+        edit("Delete") { $0.elements.remove(ids: ids) }
         selection = []
     }
 
     func duplicateSelected() {
         let originals = selectedElements
         guard !originals.isEmpty else { return }
-        var copies: [Element] = []
-        edit("Duplicate") { doc in
-            for original in originals {
-                var copy = original
-                copy.id = UUID()
-                // Offset so the copy is visibly a copy rather than sitting
-                // exactly on top of the thing it came from.
-                copy.frame.x = min(copy.frame.x + 0.04, 1 - copy.frame.width)
-                copy.frame.y = min(copy.frame.y + 0.04, 1 - copy.frame.height)
-                copies.append(copy)
-                doc.elements.append(copy)
-            }
+        var copies: [(element: Element, parent: UUID?)] = []
+        for original in originals {
+            // A deep copy with fresh ids throughout, so duplicating a container
+            // gives two independent trees rather than two views of one.
+            var copy = [original].reidentified()[0]
+            // Offset so the copy is visibly a copy rather than sitting exactly
+            // on top of the thing it came from.
+            copy.frame.x = min(copy.frame.x + 0.04, 1 - copy.frame.width)
+            copy.frame.y = min(copy.frame.y + 0.04, 1 - copy.frame.height)
+            copies.append((copy, doc.parentID(of: original.id)))
         }
-        selection = Set(copies.map(\.id))
+        edit("Duplicate") { doc in
+            for copy in copies { doc.elements.insert(copy.element, into: copy.parent) }
+        }
+        selection = Set(copies.map(\.element.id))
     }
 
     /// Removes every element, leaving the document itself intact. Undoable
@@ -182,38 +196,34 @@ final class EditorModel {
     }
 
     func bringSelectedToFront() {
-        let ids = selection
-        guard !ids.isEmpty else { return }
-        edit("Bring to Front") { doc in
-            let moved = doc.elements.filter { ids.contains($0.id) }
-            doc.elements.removeAll { ids.contains($0.id) }
-            doc.elements.append(contentsOf: moved)
-        }
+        for id in selection { move(id, toFront: true) }
     }
 
     func sendSelectedToBack() {
-        let ids = selection
-        guard !ids.isEmpty else { return }
-        edit("Send to Back") { doc in
-            let moved = doc.elements.filter { ids.contains($0.id) }
-            doc.elements.removeAll { ids.contains($0.id) }
-            doc.elements.insert(contentsOf: moved, at: 0)
-        }
+        for id in selection { move(id, toFront: false) }
     }
 
     /// Draw order. Later in the array is nearer the front, which matches how
     /// the renderer stacks them.
+    /// Reorders within whatever list the element lives in — the document's, or
+    /// its container's.
     func move(_ id: UUID, toFront: Bool) {
-        guard let index = doc.elements.firstIndex(where: { $0.id == id }) else { return }
+        guard let element = doc.element(id) else { return }
+        let parent = doc.parentID(of: id)
         edit(toFront ? "Bring to Front" : "Send to Back") { doc in
-            let element = doc.elements.remove(at: index)
-            if toFront { doc.elements.append(element) } else { doc.elements.insert(element, at: 0) }
+            doc.elements.remove(ids: [id])
+            if parent == nil {
+                if toFront { doc.elements.append(element) } else { doc.elements.insert(element, at: 0) }
+            } else {
+                doc.elements.update(parent!) { container in
+                    if toFront { container.children.append(element) }
+                    else { container.children.insert(element, at: 0) }
+                }
+            }
         }
     }
 
-    func reorder(from source: IndexSet, to destination: Int) {
-        edit("Reorder") { $0.elements.move(fromOffsets: source, toOffset: destination) }
-    }
+
 
     // MARK: - Data sources
 

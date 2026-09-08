@@ -23,6 +23,12 @@ struct CanvasView: View {
         return CGSize(width: reference.width * zoom, height: reference.height * zoom)
     }
 
+    /// Every element's absolute rect, nested ones included, so a repeater's
+    /// child can be clicked and dragged like anything else.
+    private var placements: [Placement] {
+        ElementLayout.placements(model.doc, data: model.data, in: canvasSize, scale: zoom)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             toolbar
@@ -170,17 +176,17 @@ struct CanvasView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { model.deselect() }
 
-            ForEach(model.doc.elements) { element in
-                let rect = element.frame.resolved(in: canvasSize)
+            ForEach(placements) { placement in
                 ElementHandle(focused: $focused,
-                              element: element,
-                              rect: rect,
-                              isSelected: model.selection.contains(element.id),
+                              element: placement.element,
+                              isSelected: model.selection.contains(placement.id),
+                              isTemplate: placement.isTemplate,
                               model: model,
-                              canvasSize: canvasSize,
+                              containerSize: placement.containerSize,
                               dragOrigin: $dragOrigin)
-                    .frame(width: max(rect.width, 10), height: max(rect.height, 10))
-                    .position(x: rect.midX, y: rect.midY)
+                    .frame(width: max(placement.rect.width, 10),
+                           height: max(placement.rect.height, 10))
+                    .position(x: placement.rect.midX, y: placement.rect.midY)
             }
         }
         .frame(width: canvasSize.width, height: canvasSize.height)
@@ -195,10 +201,14 @@ struct CanvasView: View {
 private struct ElementHandle: View {
     @FocusState.Binding var focused: Bool
     let element: Element
-    let rect: CGRect
     let isSelected: Bool
+    /// Drawn once per row of a repeater. Marked so the outline can say so —
+    /// moving it moves every copy, which is surprising unless it is signposted.
+    let isTemplate: Bool
     @Bindable var model: EditorModel
-    let canvasSize: CGSize
+    /// The box this element's frame is relative to, which is its container's,
+    /// not the canvas's.
+    let containerSize: CGSize
     @Binding var dragOrigin: [UUID: Frame]
 
     private let handleSize: CGFloat = 9
@@ -212,7 +222,9 @@ private struct ElementHandle: View {
             .fill(.clear)
             .contentShape(Rectangle())
             .overlay(
-                Rectangle().stroke(isSelected ? Palette.accent : .clear, lineWidth: 1.5)
+                Rectangle().stroke(isSelected ? (isTemplate ? Palette.accentAlt : Palette.accent) : .clear,
+                                   style: StrokeStyle(lineWidth: 1.5,
+                                                      dash: isTemplate ? [4, 3] : []))
             )
             // Handles sit on the corners, half outside the frame, so they are
             // grabbable even when an element is only a few points tall.
@@ -261,15 +273,18 @@ private struct ElementHandle: View {
                     // snapping to the grid independently.
                     for selected in model.selectedElements { dragOrigin[selected.id] = selected.frame }
                 }
-                let dx = value.translation.width / canvasSize.width
-                let dy = value.translation.height / canvasSize.height
+                // Divided by the container, not the canvas: a child of a
+                // repeater cell moves in that cell's unit space.
+                let dx = value.translation.width / containerSize.width
+                let dy = value.translation.height / containerSize.height
                 let origins = dragOrigin
                 model.edit("Move", coalescing: true) { doc in
-                    for index in doc.elements.indices {
-                        guard let origin = origins[doc.elements[index].id] else { continue }
-                        doc.elements[index].frame.x = model.snap(origin.x + dx)
-                        doc.elements[index].frame.y = model.snap(origin.y + dy)
-                        doc.elements[index].frame = doc.elements[index].frame.normalised
+                    for (id, origin) in origins {
+                        doc.elements.update(id) { element in
+                            element.frame.x = model.snap(origin.x + dx)
+                            element.frame.y = model.snap(origin.y + dy)
+                            element.frame = element.frame.normalised
+                        }
                     }
                 }
             }
@@ -306,8 +321,8 @@ private struct ElementHandle: View {
                     dragOrigin[element.id] = element.frame
                 }
                 guard let origin = dragOrigin[element.id] else { return }
-                let dx = value.translation.width / canvasSize.width
-                let dy = value.translation.height / canvasSize.height
+                let dx = value.translation.width / containerSize.width
+                let dy = value.translation.height / containerSize.height
                 model.update(element.id, "Resize", coalescing: true) { element in
                     element.frame = corner.resized(origin, dx: dx, dy: dy, snap: model.snap)
                 }

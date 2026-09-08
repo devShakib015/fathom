@@ -122,6 +122,15 @@ private struct ElementInspector: View {
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(Palette.text)
             Spacer()
+            if let parent = model.doc.parentID(of: element.id),
+               let container = model.doc.element(parent) {
+                // Position and size mean something different inside a
+                // container, so say which one you are inside.
+                Text("in \(container.displayName)")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Palette.accentAlt)
+                    .lineLimit(1)
+            }
             Text(element.kind.displayName)
                 .font(.system(size: 10))
                 .foregroundStyle(Palette.textDim)
