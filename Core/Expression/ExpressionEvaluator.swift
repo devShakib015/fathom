@@ -218,6 +218,29 @@ struct ExpressionEvaluator {
         case "right": return .string(String(text(0).suffix(Swift.max(0, Int(number(1))))))
         case "length": return .number(Double(text(0).count))
 
+        // Formatting, so an expression can produce a finished string. Mostly
+        // for alert text, where "only 4.2 GB left" beats "only 4200000000".
+        case "bytes":
+            return .string(ValueFormatter.string(args.first, format: Format(kind: .bytes),
+                                                 fallback: "—"))
+        case "percent":
+            return .string(ValueFormatter.string(args.first,
+                                                 format: Format(kind: .percent,
+                                                                precision: args.count > 1 ? Int(number(1)) : 0),
+                                                 fallback: "—"))
+        case "duration":
+            return .string(ValueFormatter.string(args.first, format: Format(kind: .duration),
+                                                 fallback: "—"))
+        case "clock":
+            return .string(ValueFormatter.string(args.first,
+                                                 format: Format(kind: .date, dateStyle: .time),
+                                                 fallback: "—"))
+        case "fixed":
+            return .string(ValueFormatter.string(args.first,
+                                                 format: Format(kind: .number,
+                                                                precision: args.count > 1 ? Int(number(1)) : 1),
+                                                 fallback: "—"))
+
         case "num": return args.first?.doubleValue.map { .number($0) } ?? .null
         case "str": return .string(text(0))
         case "date": return args.first?.dateValue.map { .date($0) } ?? .null
@@ -245,6 +268,6 @@ struct ExpressionEvaluator {
         "clamp", "pow", "sqrt", "sum", "avg", "lowest", "highest", "count", "at",
         "first", "last", "slice", "join", "upper", "lower", "trim", "contains",
         "replace", "left", "right", "length", "num", "str", "date", "now",
-        "isnull", "field",
+        "isnull", "field", "bytes", "percent", "duration", "clock", "fixed",
     ]
 }

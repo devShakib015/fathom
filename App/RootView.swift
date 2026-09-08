@@ -4,8 +4,13 @@ import WidgetKit
 struct RootView: View {
     @Environment(Library.self) private var library
     @Environment(OverlayController.self) private var overlays
+    @Environment(RuleEngine.self) private var rules
     @State private var editor: EditorModel?
-    @State private var showingGallery = false
+    @State private var destination: Destination = .editor
+
+    /// What the detail pane is showing. Rules are not documents, so they get a
+    /// destination rather than being wedged into the widget list.
+    enum Destination { case editor, gallery, rules }
 
     var body: some View {
         @Bindable var library = library
@@ -14,19 +19,22 @@ struct RootView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 200, ideal: 224, max: 280)
         } detail: {
-            if showingGallery {
+            switch destination {
+            case .gallery:
                 GalleryView { doc in
                     library.add(doc)
-                    showingGallery = false
+                    destination = .editor
                 }
-            } else {
+            case .rules:
+                RulesView()
+            case .editor:
                 detail
             }
         }
         .background(Palette.background)
         .onChange(of: library.selection, initial: true) { _, _ in
             openSelected()
-            if library.selection != nil { showingGallery = false }
+            if library.selection != nil { destination = .editor }
         }
         // Refresh every document's thumbnail and resolved values once at
         // launch, not just the selected one — the library grid will want them,
@@ -74,6 +82,7 @@ struct RootView: View {
 
             Divider().overlay(Palette.hairline)
             galleryButton
+            rulesButton
             newButton
             containerFooter
         }
@@ -84,7 +93,7 @@ struct RootView: View {
     /// would make the app look like it ships three widgets.
     private var galleryButton: some View {
         Button {
-            showingGallery.toggle()
+            destination = destination == .gallery ? .editor : .gallery
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "square.grid.2x2.fill")
@@ -99,15 +108,52 @@ struct RootView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(showingGallery ? Palette.accent.opacity(0.16) : Palette.surface.opacity(0.6),
+            .background(destination == .gallery ? Palette.accent.opacity(0.16) : Palette.surface.opacity(0.6),
                         in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(showingGallery ? Palette.accent.opacity(0.5) : Palette.hairline, lineWidth: 1))
+                .stroke(destination == .gallery ? Palette.accent.opacity(0.5) : Palette.hairline, lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .foregroundStyle(showingGallery ? Palette.accent : Palette.text)
+        .foregroundStyle(destination == .gallery ? Palette.accent : Palette.text)
         .padding(.horizontal, 12)
         .padding(.top, 8)
+    }
+
+    /// Rules watch data and act on it. They belong beside the catalog rather
+    /// than inside a document, because a rule can watch something no widget
+    /// shows.
+    private var rulesButton: some View {
+        Button {
+            destination = destination == .rules ? .editor : .rules
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "bell.badge")
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Rules")
+                        .font(.system(size: 11, weight: .medium))
+                    Text(rulesSubtitle)
+                        .font(.system(size: 9))
+                        .foregroundStyle(Palette.textDim)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(destination == .rules ? Palette.accent.opacity(0.16) : Palette.surface.opacity(0.6),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(destination == .rules ? Palette.accent.opacity(0.5) : Palette.hairline, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(destination == .rules ? Palette.accent : Palette.text)
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+    }
+
+    private var rulesSubtitle: String {
+        let active = rules.rules.filter(\.isEnabled).count
+        return active == 0 ? "nothing being watched"
+             : active == 1 ? "1 being watched" : "\(active) being watched"
     }
 
     private var newButton: some View {

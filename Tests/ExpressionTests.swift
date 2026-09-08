@@ -121,3 +121,39 @@ struct ExpressionTests {
         #expect(try evaluate("") == "36.7")
     }
 }
+
+/// Text with expressions embedded in it.
+@Suite("Templates")
+struct TemplateTests {
+
+    static func tree() throws -> DataValue {
+        try DataValue.parse(#"{"disk":{"free":4200000000,"usedFraction":0.91}}"#.data(using: .utf8)!)
+    }
+
+    @Test("expressions inside braces are replaced, the rest is left alone")
+    func interpolation() throws {
+        let rendered = TextTemplate.render("Only {bytes(disk.free)} left.", tree: try Self.tree())
+        #expect(rendered == "Only 4.2 GB left.")
+    }
+
+    @Test("formatting functions produce finished strings")
+    func formatters() throws {
+        let tree = try Self.tree()
+        #expect(TextTemplate.render("{percent(disk.usedFraction)}", tree: tree) == "91%")
+        #expect(TextTemplate.render("{fixed(disk.usedFraction, 2)}", tree: tree) == "0.91")
+    }
+
+    @Test("text with no braces is returned untouched")
+    func passthrough() throws {
+        #expect(TextTemplate.render("Nothing to do here", tree: try Self.tree()) == "Nothing to do here")
+    }
+
+    @Test("a broken or unclosed expression degrades rather than failing")
+    func malformed() throws {
+        let tree = try Self.tree()
+        // An alert is not worth losing over a typo in its own text.
+        #expect(TextTemplate.render("{1 +}", tree: tree) == "?")
+        #expect(TextTemplate.render("half {open", tree: tree) == "half {open")
+        #expect(TextTemplate.render("{missing.path}", tree: tree) == "—")
+    }
+}

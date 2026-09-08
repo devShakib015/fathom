@@ -16,6 +16,7 @@ struct FathomApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var library = Library()
     @State private var overlays = OverlayController()
+    @State private var rules = RuleEngine()
     @Environment(\.openWindow) private var openWindow
 
     private func openAbout() { openWindow(id: AboutWindow.id) }
@@ -25,7 +26,15 @@ struct FathomApp: App {
             RootView()
                 .environment(library)
                 .environment(overlays)
-                .task { overlays.start() }
+                .environment(rules)
+                .task {
+                    overlays.start()
+                    // The engine can put overlays on and off screen, so it
+                    // needs to know who owns them.
+                    rules.overlays = overlays
+                    await rules.refreshNotificationPermission()
+                    rules.start()
+                }
                 .frame(minWidth: 1080, minHeight: 640)
                 .preferredColorScheme(.dark)
         }
