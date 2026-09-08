@@ -20,6 +20,10 @@ struct Placement: Identifiable {
     /// Inside a repeater, and therefore drawn once per row. Handles sit on the
     /// first row, because that is the one the others are copies of.
     let isTemplate: Bool
+    /// Its condition is false right now, so the renderer is drawing nothing
+    /// there. The editor still places it — an element you cannot find is an
+    /// element you cannot turn back on.
+    let isHidden: Bool
 }
 
 enum ElementLayout {
@@ -42,7 +46,8 @@ enum ElementLayout {
                                   width: local.width, height: local.height)
                 out.append(Placement(id: element.id, element: element, depth: depth,
                                      rect: rect, containerSize: container,
-                                     isTemplate: isTemplate))
+                                     isTemplate: isTemplate,
+                                     isHidden: !data.isVisible(element, in: doc, scope: scope)))
 
                 switch element.kind {
                 case .group:

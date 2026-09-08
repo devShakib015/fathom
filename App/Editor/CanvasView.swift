@@ -181,6 +181,7 @@ struct CanvasView: View {
                               element: placement.element,
                               isSelected: model.selection.contains(placement.id),
                               isTemplate: placement.isTemplate,
+                              isHidden: placement.isHidden,
                               model: model,
                               containerSize: placement.containerSize,
                               dragOrigin: $dragOrigin)
@@ -205,6 +206,9 @@ private struct ElementHandle: View {
     /// Drawn once per row of a repeater. Marked so the outline can say so —
     /// moving it moves every copy, which is surprising unless it is signposted.
     let isTemplate: Bool
+    /// Currently hidden by its own condition. Outlined faintly even when not
+    /// selected, so it can still be found and clicked.
+    let isHidden: Bool
     @Bindable var model: EditorModel
     /// The box this element's frame is relative to, which is its container's,
     /// not the canvas's.
@@ -222,9 +226,9 @@ private struct ElementHandle: View {
             .fill(.clear)
             .contentShape(Rectangle())
             .overlay(
-                Rectangle().stroke(isSelected ? (isTemplate ? Palette.accentAlt : Palette.accent) : .clear,
-                                   style: StrokeStyle(lineWidth: 1.5,
-                                                      dash: isTemplate ? [4, 3] : []))
+                Rectangle().stroke(outlineColour,
+                                   style: StrokeStyle(lineWidth: isSelected ? 1.5 : 1,
+                                                      dash: isTemplate || isHidden ? [4, 3] : []))
             )
             // Handles sit on the corners, half outside the frame, so they are
             // grabbable even when an element is only a few points tall.
@@ -251,6 +255,13 @@ private struct ElementHandle: View {
                 RoundedRectangle(cornerRadius: 3)
                     .stroke(Palette.accentAlt, lineWidth: isDropTarget ? 2 : 0)
             )
+    }
+
+    private var outlineColour: Color {
+        if isSelected { return isTemplate ? Palette.accentAlt : Palette.accent }
+        // Nothing is drawn where a hidden element sits, so without this its
+        // handle would be an invisible target.
+        return isHidden ? Palette.textDim.opacity(0.55) : .clear
     }
 
     // MARK: - Click or move

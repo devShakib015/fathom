@@ -105,6 +105,9 @@ private struct ElementInspector: View {
             }
             Divider().overlay(Palette.hairline)
 
+            VisibilityInspector(model: model, element: element)
+            Divider().overlay(Palette.hairline)
+
             BindingInspector(model: model, element: element)
         }
     }
