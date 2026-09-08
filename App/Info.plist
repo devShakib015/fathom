@@ -45,6 +45,10 @@
 	<string>Fathom shows your upcoming events on a widget you designed. Nothing leaves this Mac.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>MIT licensed. Free, every feature, forever.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>Fathom fills in your coordinates so a weather widget shows where you actually are. The location stays on this Mac; only the endpoint your own widget names ever receives it.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Fathom fills in your coordinates so a weather widget shows where you actually are. The location stays on this Mac; only the endpoint your own widget names ever receives it.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Fathom shows your due reminders on a widget you designed. Nothing leaves this Mac.</string>
 	<key>UTExportedTypeDeclarations</key>

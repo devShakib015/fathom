@@ -60,6 +60,10 @@ targets:
         # Only used when a document adds a calendar or reminders source. The
         # entitlement makes the ask possible; it does not make it happen.
         com.apple.security.personal-information.calendars: true
+        # Only used when the user presses "Use my location". The coordinate is
+        # written to the shared store for the extension to read and is never
+        # sent anywhere except the endpoint the user's own widget names.
+        com.apple.security.personal-information.location: true
     info:
       path: App/Info.plist
       properties:
@@ -83,6 +87,8 @@ targets:
             LSItemContentTypes: [com.devshakib.fathom.widget]
         NSCalendarsFullAccessUsageDescription: "Fathom shows your upcoming events on a widget you designed. Nothing leaves this Mac."
         NSRemindersFullAccessUsageDescription: "Fathom shows your due reminders on a widget you designed. Nothing leaves this Mac."
+        NSLocationWhenInUseUsageDescription: "Fathom fills in your coordinates so a weather widget shows where you actually are. The location stays on this Mac; only the endpoint your own widget names ever receives it."
+        NSLocationUsageDescription: "Fathom fills in your coordinates so a weather widget shows where you actually are. The location stays on this Mac; only the endpoint your own widget names ever receives it."
     dependencies:
       - target: FathomWidget
         embed: true

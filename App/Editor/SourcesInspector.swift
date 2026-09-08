@@ -56,8 +56,10 @@ struct SourcesInspector: View {
                     .font(.system(size: 11))
                     .onSubmit(addEndpoint)
                 Button("Add", action: addEndpoint)
-                    .disabled(URL(string: newURL)?.host == nil)
+                    .disabled(host(of: newURL) == nil)
             }
+
+            locationRow
 
             HStack(spacing: 6) {
                 ForEach(DataSource.Kind.allCases.filter { $0 != .json }, id: \.self) { kind in
@@ -78,9 +80,67 @@ struct SourcesInspector: View {
         }
     }
 
+    // MARK: - Location
+
+    /// One row, and only one.
+    ///
+    /// Location earns a place here rather than in a settings window because
+    /// this is where a URL is typed, and the tokens are useless knowledge
+    /// anywhere else. Tapping a token inserts it, which is the only way most
+    /// people will ever discover that a shared weather widget can be about
+    /// them.
+    @ViewBuilder private var locationRow: some View {
+        let service = LocationService.shared
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: service.isAuthorised ? "location.fill" : "location.slash")
+                    .font(.system(size: 10))
+                    .foregroundStyle(service.isAuthorised ? Palette.accent : Palette.textDim)
+                Text(service.summary)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Palette.textDim)
+                    .lineLimit(1)
+                Spacer()
+                if !service.isAuthorised {
+                    Button("Use my location") { service.request() }
+                        .font(.system(size: 10))
+                        .buttonStyle(.link)
+                }
+            }
+
+            HStack(spacing: 4) {
+                ForEach(DataSource.tokens, id: \.token) { entry in
+                    Button { insert(entry.token) } label: {
+                        Text(entry.token)
+                            .font(.system(size: 9, design: .monospaced))
+                            .padding(.horizontal, 5).padding(.vertical, 2)
+                            .background(Palette.hairline.opacity(0.5),
+                                        in: RoundedRectangle(cornerRadius: 4))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Palette.textDim)
+                    .help(entry.label)
+                }
+            }
+        }
+    }
+
+    private func insert(_ token: String) {
+        newURL += token
+    }
+
+    /// Host of a URL that may still contain location tokens.
+    private func host(of string: String) -> String? {
+        let trimmed = string.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        let bare = trimmed.replacingOccurrences(of: "\\{[A-Za-z]+\\}", with: "0",
+                                                options: .regularExpression)
+        return URL(string: bare)?.host
+    }
+
     private func addEndpoint() {
         let trimmed = newURL.trimmingCharacters(in: .whitespaces)
-        guard let url = URL(string: trimmed), let host = url.host else { return }
+        guard let host = host(of: trimmed) else { return }
         let source = DataSource(name: host, kind: .json, url: trimmed)
         model.addSource(source)
         browsing = source.id

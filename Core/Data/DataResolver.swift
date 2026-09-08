@@ -201,11 +201,17 @@ enum DataResolver {
                 }
 
             case .json:
-                guard let string = source.url,
+                // Location tokens resolve here rather than at edit time, so the
+                // stored document stays portable and the coordinates are never
+                // written into a file that might be shared.
+                guard let raw = source.url,
+                      case let string = DataSource.fill(raw, with: PlaceStore.current),
                       let url = URL(string: string),
                       url.scheme == "https" || url.scheme == "http"
                 else {
-                    out.failures[source.id] = "No valid URL"
+                    out.failures[source.id] = source.usesLocation && !PlaceStore.current.isAuthorised
+                        ? "Needs location access"
+                        : "No valid URL"
                     if let cached = SourceCache.read(source.id) {
                         out.trees[source.id] = cached
                         out.isStale = true

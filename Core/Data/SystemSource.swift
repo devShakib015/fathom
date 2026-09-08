@@ -37,6 +37,7 @@ enum SystemSource {
             ("network", networkBranch(traffic, now: now, previous: previous)),
             ("system", hostBranch(now)),
             ("devices", devicesBranch()),
+            ("place", placeBranch()),
         ])
     }
 
@@ -44,6 +45,16 @@ enum SystemSource {
     /// browser before anything has been fetched.
     static var schemaDescription: [(path: String, label: String)] {
         [
+            ("place.city", "Town or city, once located"),
+            ("place.region", "State or province"),
+            ("place.country", "Country"),
+            ("place.countryCode", "Two-letter country code"),
+            ("place.label", "Best available name for where you are"),
+            ("place.latitude", "Degrees north"),
+            ("place.longitude", "Degrees east"),
+            ("place.timeZone", "IANA time zone identifier"),
+            ("place.isAuthorised", "Fathom has location permission"),
+            ("place.ageMinutes", "How long ago the location was resolved"),
             ("date.now", "Current date and time"),
             ("date.epoch", "Seconds since 1970"),
             ("battery.percent", "Charge, 0…1"),
@@ -169,6 +180,26 @@ enum SystemSource {
 
     /// A list rather than named fields, so a repeater can draw one row per
     /// device without the document knowing how many there are.
+    /// Where the Mac is, as last written by the app.
+    ///
+    /// Never resolved here: this runs inside the widget extension as often as
+    /// not, and the extension is a reader. `Place` explains the split.
+    private static func placeBranch() -> DataValue {
+        let place = PlaceStore.current
+        return .ordered([
+            ("city", place.city.map(DataValue.string) ?? .null),
+            ("region", place.region.map(DataValue.string) ?? .null),
+            ("country", place.country.map(DataValue.string) ?? .null),
+            ("countryCode", place.countryCode.map(DataValue.string) ?? .null),
+            ("label", .string(place.label)),
+            ("latitude", .number(place.latitude)),
+            ("longitude", .number(place.longitude)),
+            ("timeZone", place.timeZone.map(DataValue.string) ?? .null),
+            ("isAuthorised", .bool(place.isAuthorised)),
+            ("ageMinutes", place.isAuthorised ? .number(place.age / 60) : .null),
+        ])
+    }
+
     private static func devicesBranch() -> DataValue {
         .array(HostMetrics.bluetoothDevices().map { device in
             .ordered([("name", .string(device.name)), ("percent", .number(device.percent))])

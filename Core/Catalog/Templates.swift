@@ -20,7 +20,7 @@ enum Templates {
     private static func openMeteo() -> DataSource {
         DataSource(id: UUID(uuidString: "5B1F0F1A-0000-4000-A000-000000000010")!,
                    name: "Open-Meteo", kind: .json,
-                   url: "https://api.open-meteo.com/v1/forecast?latitude=25.2048&longitude=55.2708"
+                   url: "https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}"
                       + "&current=temperature_2m,relative_humidity_2m,weather_code,is_day"
                       + "&daily=temperature_2m_max&forecast_days=7&timezone=auto")
     }

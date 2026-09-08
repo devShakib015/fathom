@@ -50,13 +50,70 @@ struct DataSource: Codable, Identifiable, Hashable {
         var needsPermission: Bool { self == .calendar || self == .reminders }
     }
 
+    /// Placeholders a `json` URL may carry, filled in at fetch time.
+    ///
+    /// This is what makes a shared weather widget mean "the weather where you
+    /// are" instead of "the weather where its author was". Without it every
+    /// template in the catalogue would have a city baked into it, and a design
+    /// format built for sharing would ship two hundred widgets that are subtly
+    /// about somebody else's life.
+    static let tokens: [(token: String, label: String)] = [
+        ("{latitude}", "Your latitude"),
+        ("{longitude}", "Your longitude"),
+        ("{city}", "Your town or city"),
+        ("{countryCode}", "Your two-letter country code"),
+        ("{timezone}", "Your IANA time zone"),
+    ]
+
+    /// Substitutes the location tokens. Anything not recognised is left alone,
+    /// so a URL that legitimately contains braces still works.
+    static func fill(_ url: String, with place: Place) -> String {
+        var out = url
+        let pairs: [(String, String)] = [
+            ("{latitude}", trimmed(place.latitude)),
+            ("{lat}", trimmed(place.latitude)),
+            ("{longitude}", trimmed(place.longitude)),
+            ("{lon}", trimmed(place.longitude)),
+            ("{lng}", trimmed(place.longitude)),
+            ("{city}", place.city ?? ""),
+            ("{countryCode}", place.countryCode ?? ""),
+            ("{timezone}", place.timeZone ?? TimeZone.current.identifier),
+        ]
+        for (token, value) in pairs {
+            guard out.contains(token) else { continue }
+            let escaped = value.addingPercentEncoding(
+                withAllowedCharacters: .urlQueryAllowed) ?? value
+            out = out.replacingOccurrences(of: token, with: escaped)
+        }
+        return out
+    }
+
+    /// Four decimal places is about eleven metres, which is far more precision
+    /// than any weather endpoint uses and far less than would make the URL a
+    /// record of where somebody sits.
+    private static func trimmed(_ value: Double) -> String {
+        String(format: "%.4f", value)
+    }
+
+    /// Whether this source's URL depends on where the user is.
+    var usesLocation: Bool {
+        guard kind == .json, let url else { return false }
+        return Self.tokens.contains { url.contains($0.token) }
+            || url.contains("{lat}") || url.contains("{lon}") || url.contains("{lng}")
+    }
+
     /// The host this source will contact, if any. Fathom shows these before a
     /// document is ever placed, which is the whole reason sharing is designed
     /// for now and shipped later: the moment a widget can be handed to someone
     /// else, "what will this call?" has to be answerable without running it.
     var host: String? {
-        guard kind == .json, let url, let parsed = URL(string: url) else { return nil }
-        return parsed.host
+        // Tokens are stripped before parsing: a URL with `{latitude}` in the
+        // query is not a legal URL, and the honest answer to "what will this
+        // call?" must not depend on whether location has been granted yet.
+        guard kind == .json, let url else { return nil }
+        let bare = url.replacingOccurrences(of: "\\{[A-Za-z]+\\}", with: "0",
+                                            options: .regularExpression)
+        return URL(string: bare)?.host
     }
 
     static func system() -> DataSource {

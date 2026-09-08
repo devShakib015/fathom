@@ -35,6 +35,9 @@ struct FathomApp: App {
                     overlays.start()
                     menuBar.start()
                     island.start()
+                    // Resumes only if permission was already given. Nothing is
+                    // asked for here; see LocationService.request().
+                    LocationService.shared.start()
                     // The engine can put overlays on and off screen, so it
                     // needs to know who owns them.
                     rules.overlays = overlays

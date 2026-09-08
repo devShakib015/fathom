@@ -60,6 +60,20 @@ and the shared store is a sandbox exception rather than an App Group. Both are
 already set up in `project.yml`; `SPEC.md` §6 explains what happens if you
 change them.
 
+To ad-hoc sign a build for distribution, use the script rather than `codesign`
+directly:
+
+```bash
+./Tools/sign.sh /path/to/Fathom.app
+```
+
+`codesign --force --deep --sign -` — the obvious command — replaces the
+signature and silently drops every entitlement, including the sandbox the
+extension needs in order to be registered at all. The app then installs,
+launches and looks completely normal with no widgets available and no error
+anywhere. `SPEC.md` §6 trap 8 has the measurement; the script signs inside out
+with the right entitlements and reads the signature back to check.
+
 ## Tests
 
 ```bash

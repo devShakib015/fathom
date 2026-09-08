@@ -5,8 +5,10 @@ mount it on the desktop. Plus a library of ready-made ones to start from.
 
 This document is written to be read cold. If you are an agent picking this up
 with no other context, everything you need to start is here, including the
-measurement the whole product rests on and the four traps that will otherwise
-each cost you an afternoon.
+measurement the whole product rests on and the eight traps that will otherwise
+each cost you an afternoon. Trap 8 is about the shipping step and was found
+after everything else had already been verified — read §6 before you package
+anything.
 
 ---
 
@@ -189,7 +191,7 @@ App Group, however much it looks like the right answer — see trap 5.
 
 ---
 
-## 6. Seven traps, each measured the hard way
+## 6. Eight traps, each measured the hard way
 
 These came out of building the probe. Every one produced a green build and a
 silently broken result.
@@ -316,6 +318,47 @@ that never runs.
 
 Also: the embedded extension's bundle id must be prefixed with the host app's
 full bundle id, or `ValidateEmbeddedBinary` fails the build.
+
+### Trap 8 — ad-hoc signing silently strips every entitlement
+
+Measured 8 Sep 2026, and it invalidates the obvious way to ship.
+
+Fathom ships unsigned, so the install step has always been the obvious command:
+
+```
+codesign --force --deep --sign - Fathom.app
+```
+
+That command replaces the signature. **A replaced signature carries no
+entitlements unless you hand them back**, and `--deep` does the same thing to
+the embedded extension. Verified on a real install:
+
+```
+build product   app-sandbox true, /Users/Shared/Fathom/, location, calendars
+after --deep    (no entitlements at all — the dump is empty)
+```
+
+The app still launches and behaves normally, because an unsandboxed app is
+*less* restricted, not more. The extension is where it bites: trap 1 says macOS
+silently refuses to register a widget extension that is not sandboxed, so the
+ad-hoc build ships an app whose widgets can never appear, with no error at any
+stage. Green build, clean install, working app, no widgets.
+
+This one is nastier than the others because the broken step is the *last* one,
+after everything has been tested. Every verification in this project up to here
+was done on an Xcode-signed build.
+
+The fix is `Tools/sign.sh`: sign inside out, name each target's entitlements
+file explicitly, and then read the signature back and fail loudly if the sandbox
+or the shared-store exception did not survive. Never `--deep`; never `--sign -`
+without `--entitlements`.
+
+The general lesson is the one this section keeps repeating in different
+costumes: **a successful command is not evidence.** `codesign` exited zero and
+printed "replacing existing signature" while removing the thing the whole
+storage architecture depends on.
+
+---
 
 And a note on observability, since a widget extension has no console and trap 4
 rules out the debugger: on this machine `log show` returns nothing at all, for
