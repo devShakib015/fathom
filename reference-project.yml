@@ -1,0 +1,61 @@
+name: WidgetReloadProbe
+options:
+  bundleIdPrefix: com.devshakib.widgetreloadprobe
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # macOS will not register a widget extension that is not sandboxed, so this
+    # is not optional even for a throwaway probe. Both targets then take a
+    # home-relative temporary exception for one directory, which lets them
+    # share a log file without an App Group — App Groups need a provisioning
+    # profile and this should not need one.
+    ENABLE_APP_SANDBOX: YES
+    ENABLE_HARDENED_RUNTIME: NO
+
+targets:
+  WidgetReloadProbe:
+    type: application
+    platform: macOS
+    sources: [App]
+    entitlements:
+      path: App/Probe.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.temporary-exception.files.home-relative-path.read-write:
+          - /Library/Logs/WidgetReloadProbe/
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Widget Reload Probe
+        LSMinimumSystemVersion: "26.0"
+    dependencies:
+      - target: ProbeWidgetExtension
+        embed: true
+        codeSign: true
+
+  ProbeWidgetExtension:
+    type: app-extension
+    platform: macOS
+    sources: [Widget]
+    entitlements:
+      path: Widget/Probe.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        # The whole point is live data, so the network is on: the next question
+        # after "how often" is whether a reload can finish a fetch.
+        com.apple.security.network.client: true
+        com.apple.security.temporary-exception.files.home-relative-path.read-write:
+          - /Library/Logs/WidgetReloadProbe/
+    info:
+      path: Widget/Info.plist
+      properties:
+        CFBundleDisplayName: Reload Probe
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.devshakib.widgetreloadprobe.WidgetReloadProbe.ProbeWidgetExtension
