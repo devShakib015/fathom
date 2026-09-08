@@ -189,7 +189,7 @@ App Group, however much it looks like the right answer — see trap 5.
 
 ---
 
-## 6. Six traps, each measured the hard way
+## 6. Seven traps, each measured the hard way
 
 These came out of building the probe. Every one produced a green build and a
 silently broken result.
@@ -261,6 +261,32 @@ systemMedium              344 x 164   corner radius 27.88
 systemLarge               344 x 344   corner radius 27.88
 systemExtraLargeLandscape 704 x 344   corner radius 27.88
 ```
+
+**7. `AppIntentConfiguration` never ran here, and said nothing about it.**
+Switching the four widgets from `StaticConfiguration` to `AppIntentConfiguration`
+— so each placement could pick its own document — compiled, extracted all eight
+intent and entity types into `Metadata.appintents`, and registered normally in
+`pluginkit`. WidgetKit then asked the provider for `placeholder`, over and over,
+and never once for a snapshot or a timeline. Measured over four hours:
+
+```
+timeline calls after the switch   0
+snapshot calls, ever              0
+```
+
+Tried under both an Apple Development signature and ad hoc, and with the intent
+types compiled into the extension alone and then into both targets — the
+metadata bundle is genuinely required in the app as well, and adding it changed
+nothing here. Reverting to `StaticConfiguration` produced 33 timelines and 25
+renders within five minutes, from the same documents, on the same build of
+macOS.
+
+Two things follow. Widgets placed under one configuration kind do not survive a
+switch to the other, so every attempt costs a re-add. And since Fathom ships
+ad-hoc signed, a fix that needed a paid signature would not help the thing people
+download anyway. The cost is one document per family: two medium widgets on the
+desktop show the same design. A widget that renders is worth more than a picker
+that never runs.
 
 Also: the embedded extension's bundle id must be prefixed with the host app's
 full bundle id, or `ValidateEmbeddedBinary` fails the build.
