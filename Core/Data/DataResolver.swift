@@ -9,11 +9,32 @@ struct ResolvedData: Hashable, Sendable {
     var failures: [UUID: String] = [:]
     /// True when at least one value came from cache rather than the network.
     var isStale: Bool = false
+    /// Downsampled bytes for every image URL the document referenced, fetched
+    /// alongside the data because a widget's body cannot await anything.
+    var images: [String: Data] = [:]
     var capturedAt: Date = .distantPast
 
+    /// Where an element sits: nothing, or one item of a repeater.
+    ///
+    /// A repeater's children resolve their key paths against the *item* rather
+    /// than the source root, which is what lets one child template describe
+    /// every row without knowing its own index.
+    struct Scope: Hashable, Sendable {
+        var item: DataValue?
+        var index: Int?
+        var total: Int?
+
+        static let root = Scope()
+        var isRepeated: Bool { item != nil }
+    }
+
     /// The raw value at the binding's key path, before any transform.
-    func rawValue(for binding: DataBinding) -> DataValue? {
-        trees[binding.sourceID]?[path: binding.keyPath]
+    func rawValue(for binding: DataBinding, scope: Scope = .root) -> DataValue? {
+        let base = scope.item ?? trees[binding.sourceID]
+        let path = binding.keyPath.trimmingCharacters(in: .whitespaces)
+        // An empty path inside a repeater means "this item itself", which is
+        // exactly what an array of plain numbers needs.
+        return path.isEmpty ? base : base?[path: path]
     }
 
     /// What the binding actually produces: the key path's value, or the result
@@ -23,33 +44,101 @@ struct ResolvedData: Hashable, Sendable {
     /// `fallback` renders — an expression that cannot resolve should look
     /// exactly like a fetch that failed, because from the widget's point of
     /// view it is the same thing.
-    func value(for binding: DataBinding) -> DataValue? {
-        let tree = trees[binding.sourceID]
-        let own = tree?[path: binding.keyPath]
+    func value(for binding: DataBinding, scope: Scope = .root) -> DataValue? {
+        let own = rawValue(for: binding, scope: scope)
         guard binding.hasExpression,
               let source = binding.expression,
               let program = try? ExpressionParser.parse(source)
         else { return own }
 
-        let result = ExpressionEvaluator(tree: tree,
+        let result = ExpressionEvaluator(tree: trees[binding.sourceID],
                                          ownValue: own,
+                                         item: scope.item,
+                                         index: scope.index,
+                                         total: scope.total,
                                          now: capturedAt == .distantPast ? Date() : capturedAt)
             .evaluate(program)
         return result == .null ? nil : result
     }
 
+    /// Whether an element draws at all.
+    ///
+    /// Evaluated against the element's own source when it has one, so
+    /// `visibleWhen` can talk about the same data the element shows without
+    /// naming it twice.
+    func isVisible(_ element: Element, in doc: WidgetDoc, scope: Scope = .root) -> Bool {
+        guard let source = element.visibleWhen?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !source.isEmpty,
+              let program = try? ExpressionParser.parse(source)
+        else { return true }
+
+        let sourceID = element.binding?.sourceID ?? doc.sources.first?.id
+        let tree = sourceID.flatMap { trees[$0] }
+        let own = element.binding.map { rawValue(for: $0, scope: scope) } ?? scope.item
+
+        let result = ExpressionEvaluator(tree: tree, ownValue: own,
+                                         item: scope.item, index: scope.index,
+                                         total: scope.total,
+                                         now: capturedAt == .distantPast ? Date() : capturedAt)
+            .evaluate(program)
+        switch result {
+        case .bool(let b): return b
+        case .number(let n): return n != 0
+        case .string(let s): return !s.isEmpty
+        case .null: return false
+        default: return true
+        }
+    }
+
+    /// Every image URL this document will draw, including one per repeated
+    /// row, so they can all be fetched before anything renders.
+    func imageURLs(in doc: WidgetDoc) -> [String] {
+        var found: [String] = []
+
+        func walk(_ elements: [Element], scope: Scope) {
+            for element in elements {
+                guard isVisible(element, in: doc, scope: scope) else { continue }
+                if element.kind == .image {
+                    let url = text(for: element, scope: scope).trimmingCharacters(in: .whitespaces)
+                    if url.hasPrefix("http"), !found.contains(url) { found.append(url) }
+                }
+                if element.kind == .repeater {
+                    let rows = items(for: element, scope: scope)
+                    let limit = min(rows.count, Element.repeaterLimit)
+                    for (i, row) in rows.prefix(limit).enumerated() {
+                        walk(element.children, scope: Scope(item: row, index: i, total: limit))
+                    }
+                } else if !element.children.isEmpty {
+                    walk(element.children, scope: scope)
+                }
+            }
+        }
+        walk(doc.elements, scope: .root)
+        return found
+    }
+
+    /// The items a repeater draws.
+    func items(for element: Element, scope: Scope = .root) -> [DataValue] {
+        guard let binding = element.binding, let resolved = value(for: binding, scope: scope) else {
+            return []
+        }
+        if case .array(let items) = resolved { return items }
+        if case .object(let pairs) = resolved { return pairs.map(\.value) }
+        return [resolved]
+    }
+
     /// The string an element renders, whether it is bound or literal.
-    func text(for element: Element) -> String {
+    func text(for element: Element, scope: Scope = .root) -> String {
         guard let binding = element.binding else { return element.text }
-        return ValueFormatter.string(value(for: binding),
+        return ValueFormatter.string(value(for: binding, scope: scope),
                                      format: binding.format,
                                      fallback: binding.fallback)
     }
 
     /// The 0…1 number an arc renders.
-    func fraction(for element: Element) -> Double {
+    func fraction(for element: Element, scope: Scope = .root) -> Double {
         let raw: Double? = if let binding = element.binding {
-            value(for: binding)?.doubleValue
+            value(for: binding, scope: scope)?.doubleValue
         } else {
             Double(element.text.trimmingCharacters(in: .whitespaces))
         }
@@ -61,9 +150,9 @@ struct ResolvedData: Hashable, Sendable {
     }
 
     /// The series a sparkline renders.
-    func series(for element: Element) -> [Double] {
-        if element.binding != nil {
-            return SeriesReader.series(from: value(for: element.binding!))
+    func series(for element: Element, scope: Scope = .root) -> [Double] {
+        if let binding = element.binding {
+            return SeriesReader.series(from: value(for: binding, scope: scope))
         }
         return SeriesReader.literal(element.text)
     }
@@ -79,6 +168,7 @@ enum DataResolver {
 
     static func resolve(_ doc: WidgetDoc, now: Date = Date()) async -> ResolvedData {
         var out = ResolvedData(capturedAt: now)
+        defer { }
 
         for source in doc.sources {
             switch source.kind {
@@ -112,6 +202,14 @@ enum DataResolver {
                         out.isStale = true
                     }
                 }
+            }
+        }
+
+        // Images last: their URLs can come from the data that was just fetched,
+        // so there is nothing to collect until the sources have resolved.
+        for url in out.imageURLs(in: doc) {
+            if let bytes = await ImageStore.load(url) {
+                out.images[url] = bytes
             }
         }
         return out

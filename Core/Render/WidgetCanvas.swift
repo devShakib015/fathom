@@ -23,45 +23,96 @@ struct WidgetCanvas: View {
 
             ZStack(alignment: .topLeading) {
                 Color.clear
-                ForEach(doc.elements) { element in
-                    let rect = element.frame.resolved(in: size)
-                    ElementView(element: element, data: data, scale: scale, size: rect.size)
-                        .frame(width: rect.width, height: rect.height)
-                        .opacity(element.style.opacity)
-                        .offset(x: rect.minX, y: rect.minY)
-                }
+                ElementList(elements: doc.elements, doc: doc, data: data,
+                            scope: .root, box: size, scale: scale)
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
         }
     }
 }
 
+/// Lays a list of elements into a box. Recursive, so containers cost nothing
+/// extra: a child's frame is unit-space inside its parent exactly as a
+/// top-level element's is inside the widget.
+struct ElementList: View {
+    let elements: [Element]
+    let doc: WidgetDoc
+    let data: ResolvedData
+    let scope: ResolvedData.Scope
+    let box: CGSize
+    let scale: Double
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(elements) { element in
+                if data.isVisible(element, in: doc, scope: scope) {
+                    let rect = element.frame.resolved(in: box)
+                    PlacedElement(element: element, doc: doc, data: data, scope: scope,
+                                  size: rect.size, scale: scale)
+                        .frame(width: rect.width, height: rect.height)
+                        .offset(x: rect.minX, y: rect.minY)
+                }
+            }
+        }
+        .frame(width: box.width, height: box.height, alignment: .topLeading)
+    }
+}
+
+/// One element with its shared style chrome applied. Split from the drawing so
+/// that opacity, rotation and shadow are written once rather than in each of
+/// the ten kinds.
+private struct PlacedElement: View {
+    let element: Element
+    let doc: WidgetDoc
+    let data: ResolvedData
+    let scope: ResolvedData.Scope
+    let size: CGSize
+    let scale: Double
+
+    var body: some View {
+        ElementView(element: element, doc: doc, data: data, scope: scope, size: size, scale: scale)
+            .opacity(element.style.opacity)
+            .rotationEffect(.degrees(element.style.rotation))
+            .shadow(color: element.style.shadowRadius > 0
+                    ? element.style.shadowColor.color : .clear,
+                    radius: element.style.shadowRadius * scale,
+                    y: element.style.shadowY * scale)
+    }
+}
+
 /// One element, drawn.
 struct ElementView: View {
     let element: Element
+    let doc: WidgetDoc
     let data: ResolvedData
-    let scale: Double
+    var scope: ResolvedData.Scope = .root
     /// The element's own box, already resolved to points.
     let size: CGSize
+    let scale: Double
 
     private var style: Style { element.style }
 
     var body: some View {
         switch element.kind {
-        case .text:    text
-        case .symbol:  symbol
-        case .shape:   shape
-        case .divider: divider
-        case .arc:     arc
-        case .spark:   spark
+        case .text:     text
+        case .symbol:   symbol
+        case .shape:    shape
+        case .divider:  divider
+        case .arc:      arc
+        case .spark:    spark
+        case .image:    image
+        case .bar:      bar
+        case .group:    group
+        case .repeater: repeater
         }
     }
 
     // MARK: - Text
 
     private var text: some View {
-        Text(data.text(for: element))
+        Text(data.text(for: element, scope: scope))
             .font(style.font.font(scale: scale))
+            .tracking(style.tracking * scale)
             .foregroundStyle(style.foreground.color)
             .multilineTextAlignment(style.alignment.swiftUI)
             .lineLimit(style.lineLimit <= 0 ? nil : style.lineLimit)
@@ -77,7 +128,7 @@ struct ElementView: View {
     private var symbol: some View {
         // The symbol name can itself be bound, so a widget can show
         // `cloud.rain` or `sun.max` from a weather endpoint's condition field.
-        let name = data.text(for: element)
+        let name = data.text(for: element, scope: scope)
         return Image(systemName: name.isEmpty ? "questionmark" : name)
             .resizable()
             .scaledToFit()
@@ -90,8 +141,15 @@ struct ElementView: View {
     // MARK: - Shape
 
     private var shape: some View {
-        RoundedRectangle(cornerRadius: style.cornerRadius * scale, style: .continuous)
-            .fill((style.fill ?? style.foreground).color)
+        let corner = RoundedRectangle(cornerRadius: style.cornerRadius * scale, style: .continuous)
+        return corner
+            .fill(.clear)
+            .overlay(corner.fill(style.paint(style.fill ?? style.foreground)))
+            .overlay(
+                corner.strokeBorder(style.strokeColor?.color ?? .clear,
+                                    lineWidth: style.strokeColor == nil ? 0 : style.strokeWidth * scale)
+            )
+            .clipShape(corner)
     }
 
     // MARK: - Divider
@@ -112,19 +170,23 @@ struct ElementView: View {
     // MARK: - Arc
 
     private var arc: some View {
-        let fraction = data.fraction(for: element)
+        let fraction = data.fraction(for: element, scope: scope)
         let width = max(style.lineWidth * scale, 1)
+        // A sweep of less than a full turn is the open gauge every dashboard
+        // uses; 360 keeps the plain ring.
+        let sweep = min(max(style.arcSweep, 1), 360) / 360
         return ZStack {
             Circle()
+                .trim(from: 0, to: sweep)
                 .stroke(trackColor, style: StrokeStyle(lineWidth: width, lineCap: .round))
             Circle()
-                .trim(from: 0, to: max(fraction, 0.0001))
-                .stroke(style.foreground.color,
+                .trim(from: 0, to: max(fraction * sweep, 0.0001))
+                .stroke(style.paint(style.foreground),
                         style: StrokeStyle(lineWidth: width, lineCap: .round))
-                // Trim starts at 3 o'clock; every progress ring anyone has
-                // ever seen starts at 12.
-                .rotationEffect(.degrees(-90))
         }
+        // Trim starts at 3 o'clock; every progress ring anyone has ever seen
+        // starts at 12, and `arcStart` turns it from there.
+        .rotationEffect(.degrees(-90 + style.arcStart))
         .padding(width / 2)
         .aspectRatio(1, contentMode: .fit)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -134,10 +196,54 @@ struct ElementView: View {
         style.fill?.color ?? style.foreground.color.opacity(0.18)
     }
 
+    // MARK: - Bar
+
+    private var bar: some View {
+        let fraction = data.fraction(for: element, scope: scope)
+        let vertical = size.height > size.width
+        let radius = style.cornerRadius > 0
+            ? style.cornerRadius * scale
+            : min(size.width, size.height) / 2
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        return ZStack(alignment: vertical ? .bottom : .leading) {
+            shape.fill(trackColor)
+            shape.fill(style.paint(style.foreground))
+                .frame(width: vertical ? nil : max(size.width * fraction, radius * 2),
+                       height: vertical ? max(size.height * fraction, radius * 2) : nil)
+        }
+        .clipShape(shape)
+    }
+
+    // MARK: - Image
+
+    @ViewBuilder
+    private var image: some View {
+        let url = data.text(for: element, scope: scope).trimmingCharacters(in: .whitespaces)
+        let corner = RoundedRectangle(cornerRadius: style.cornerRadius * scale, style: .continuous)
+
+        if let bytes = data.images[url], let loaded = NSImage(data: bytes) {
+            Image(nsImage: loaded)
+                .resizable()
+                .aspectRatio(contentMode: style.contentMode == .fill ? .fill : .fit)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipShape(corner)
+        } else {
+            // Not a blank box: an image that has not arrived should say so,
+            // because "no picture" and "wrong URL" look identical otherwise.
+            corner
+                .fill(style.foreground.color.opacity(0.08))
+                .overlay(
+                    Image(systemName: url.isEmpty ? "photo" : "photo.badge.exclamationmark")
+                        .font(.system(size: min(size.width, size.height) * 0.3, weight: .light))
+                        .foregroundStyle(style.foreground.color.opacity(0.5))
+                )
+        }
+    }
+
     // MARK: - Sparkline
 
     private var spark: some View {
-        let series = data.series(for: element)
+        let series = data.series(for: element, scope: scope)
         let width = max(style.lineWidth * scale * 0.5, 1)
         return Canvas { context, canvasSize in
             guard series.count >= 2 else { return }
@@ -175,6 +281,54 @@ struct ElementView: View {
             context.stroke(line,
                            with: .color(style.foreground.color),
                            style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+        }
+    }
+
+    // MARK: - Containers
+
+    private var group: some View {
+        ElementList(elements: element.children, doc: doc, data: data,
+                    scope: scope, box: size, scale: scale)
+    }
+
+    /// One child template, drawn once per item of a bound array.
+    ///
+    /// Each row gets its own scope, so a child's key path resolves against the
+    /// item rather than the source root and `index`/`total` mean something.
+    /// That is what lets three elements describe seven days.
+    private var repeater: some View {
+        let rows = data.items(for: element, scope: scope)
+        let limit = min(rows.count, Element.repeaterLimit)
+        let vertical = size.height > size.width
+        let spacing = style.lineWidth * scale
+
+        return HVStack(vertical: vertical, spacing: spacing) {
+            ForEach(0..<limit, id: \.self) { index in
+                GeometryReader { cell in
+                    ElementList(elements: element.children, doc: doc, data: data,
+                                scope: ResolvedData.Scope(item: rows[index],
+                                                          index: index,
+                                                          total: limit),
+                                box: cell.size, scale: scale)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// A stack whose axis is decided at runtime, since a repeater's direction comes
+/// from the shape the user drew rather than from a setting.
+private struct HVStack<Content: View>: View {
+    let vertical: Bool
+    let spacing: Double
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if vertical {
+            VStack(spacing: spacing) { content }
+        } else {
+            HStack(spacing: spacing) { content }
         }
     }
 }

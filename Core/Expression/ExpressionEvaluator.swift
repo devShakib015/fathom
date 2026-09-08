@@ -11,11 +11,24 @@ struct ExpressionEvaluator {
     let tree: DataValue?
     /// The value at the binding's own key path, i.e. what `value` means.
     let ownValue: DataValue?
+    /// Inside a repeater: the item being drawn, its position, and how many
+    /// there are. All nil outside one, where the identifiers evaluate to null.
+    let item: DataValue?
+    let index: Int?
+    let total: Int?
     let now: Date
 
-    init(tree: DataValue?, ownValue: DataValue?, now: Date = Date()) {
+    init(tree: DataValue?,
+         ownValue: DataValue?,
+         item: DataValue? = nil,
+         index: Int? = nil,
+         total: Int? = nil,
+         now: Date = Date()) {
         self.tree = tree
         self.ownValue = ownValue
+        self.item = item
+        self.index = index
+        self.total = total
         self.now = now
     }
 
@@ -26,6 +39,15 @@ struct ExpressionEvaluator {
 
         case .value:
             return ownValue ?? .null
+
+        case .item:
+            return item ?? .null
+
+        case .index:
+            return index.map { .number(Double($0)) } ?? .null
+
+        case .count:
+            return total.map { .number(Double($0)) } ?? .null
 
         case .field(let pathExpression):
             let path = evaluate(pathExpression).stringValue

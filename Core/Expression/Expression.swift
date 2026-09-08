@@ -26,6 +26,12 @@ indirect enum Expression: Hashable, Sendable {
     /// The value at the binding's own key path — the common case, so it gets
     /// the shortest possible spelling.
     case value
+    /// Inside a repeater, the array element being drawn.
+    case item
+    /// Inside a repeater, its zero-based position.
+    case index
+    /// Inside a repeater, how many items there are.
+    case count
     /// Any other path in the same source.
     case field(Expression)
     case unary(UnaryOperator, Expression)
@@ -273,6 +279,9 @@ struct ExpressionParser {
 
             switch name {
             case "value": return .value
+            case "item": return .item
+            case "index": return .index
+            case "total": return .count
             case "true": return .literal(.bool(true))
             case "false": return .literal(.bool(false))
             case "null": return .literal(.null)

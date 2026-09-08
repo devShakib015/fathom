@@ -151,6 +151,33 @@ private struct ElementInspector: View {
             TextField("12, 15, 13, 19", text: binding(\.text, "Series"))
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 11, design: .monospaced))
+        case .bar:
+            InspectorRow(label: "Value") {
+                NumberField(label: "Value", value: Binding(
+                    get: { Double(element.text) ?? 0 },
+                    set: { new in model.update(element.id, "Value") { $0.text = String(format: "%.2f", new) } }
+                ), range: 0...1)
+            }
+        case .image:
+            VStack(alignment: .leading, spacing: 4) {
+                TextField("https://example.com/picture.png", text: binding(\.text, "Image URL"))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11))
+                Text("Fetched when the widget reloads and cached, so a dropped connection keeps the last picture.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Palette.textDim.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        case .repeater:
+            Text("Bind this to a list below. Its children are drawn once per item, and inside them `item`, `index` and `total` are available.")
+                .font(.system(size: 11))
+                .foregroundStyle(Palette.textDim)
+                .fixedSize(horizontal: false, vertical: true)
+        case .group:
+            Text("Holds other elements so they move, hide and fade together.")
+                .font(.system(size: 11))
+                .foregroundStyle(Palette.textDim)
+                .fixedSize(horizontal: false, vertical: true)
         case .shape, .divider:
             Text("Nothing to set — this element draws itself.")
                 .font(.system(size: 11))

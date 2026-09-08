@@ -162,6 +162,38 @@ struct Style: Codable, Hashable {
     var lineWidth: Double
     var opacity: Double
 
+    // MARK: Added in schema 3
+
+    /// Degrees clockwise, about the element's centre.
+    var rotation: Double
+    /// Letter spacing, in points at the reference size. Small negative values
+    /// are what make large numerals look typeset rather than typed.
+    var tracking: Double
+    /// A drop shadow. Radius 0 means none, which is the default — a shadow on
+    /// by default would quietly soften every design anyone builds.
+    var shadowRadius: Double
+    var shadowColor: ColorSpec
+    var shadowY: Double
+    /// An outline drawn around a shape, independent of its fill.
+    var strokeColor: ColorSpec?
+    var strokeWidth: Double
+    /// A second colour, turning a shape's fill or a bar's track into a
+    /// gradient. nil keeps the flat fill.
+    var gradientEnd: ColorSpec?
+    var gradientAngle: Double
+    /// Where a circular arc begins, in degrees clockwise from twelve, and how
+    /// far it sweeps. The defaults are a full ring; 135 and 270 give the open
+    /// gauge that every dashboard uses.
+    var arcStart: Double
+    var arcSweep: Double
+    /// How an image fills its box.
+    var contentMode: ContentMode
+
+    enum ContentMode: String, Codable, CaseIterable {
+        case fit, fill
+        var displayName: String { self == .fit ? "Fit" : "Fill" }
+    }
+
     init(font: FontSpec = FontSpec(size: 14),
          foreground: ColorSpec = .text,
          fill: ColorSpec? = nil,
@@ -169,7 +201,19 @@ struct Style: Codable, Hashable {
          lineLimit: Int = 1,
          cornerRadius: Double = 0,
          lineWidth: Double = 6,
-         opacity: Double = 1) {
+         opacity: Double = 1,
+         rotation: Double = 0,
+         tracking: Double = 0,
+         shadowRadius: Double = 0,
+         shadowColor: ColorSpec = ColorSpec("#000000", opacity: 0.45),
+         shadowY: Double = 2,
+         strokeColor: ColorSpec? = nil,
+         strokeWidth: Double = 1,
+         gradientEnd: ColorSpec? = nil,
+         gradientAngle: Double = 135,
+         arcStart: Double = 0,
+         arcSweep: Double = 360,
+         contentMode: ContentMode = .fit) {
         self.font = font
         self.foreground = foreground
         self.fill = fill
@@ -178,6 +222,74 @@ struct Style: Codable, Hashable {
         self.cornerRadius = cornerRadius
         self.lineWidth = lineWidth
         self.opacity = opacity
+        self.rotation = rotation
+        self.tracking = tracking
+        self.shadowRadius = shadowRadius
+        self.shadowColor = shadowColor
+        self.shadowY = shadowY
+        self.strokeColor = strokeColor
+        self.strokeWidth = strokeWidth
+        self.gradientEnd = gradientEnd
+        self.gradientAngle = gradientAngle
+        self.arcStart = arcStart
+        self.arcSweep = arcSweep
+        self.contentMode = contentMode
+    }
+
+    /// Every field added after schema 2 decodes with a default, so a document
+    /// written by an older build still opens rather than failing to parse.
+    /// This is the whole reason the format is hand-decoded here instead of
+    /// relying on the synthesised initialiser.
+    enum CodingKeys: String, CodingKey {
+        case font, foreground, fill, alignment, lineLimit, cornerRadius, lineWidth, opacity
+        case rotation, tracking, shadowRadius, shadowColor, shadowY
+        case strokeColor, strokeWidth, gradientEnd, gradientAngle
+        case arcStart, arcSweep, contentMode
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        font = try c.decode(FontSpec.self, forKey: .font)
+        foreground = try c.decode(ColorSpec.self, forKey: .foreground)
+        fill = try c.decodeIfPresent(ColorSpec.self, forKey: .fill)
+        alignment = try c.decode(TextAlignment.self, forKey: .alignment)
+        lineLimit = try c.decode(Int.self, forKey: .lineLimit)
+        cornerRadius = try c.decode(Double.self, forKey: .cornerRadius)
+        lineWidth = try c.decode(Double.self, forKey: .lineWidth)
+        opacity = try c.decode(Double.self, forKey: .opacity)
+        rotation = try c.decodeIfPresent(Double.self, forKey: .rotation) ?? 0
+        tracking = try c.decodeIfPresent(Double.self, forKey: .tracking) ?? 0
+        shadowRadius = try c.decodeIfPresent(Double.self, forKey: .shadowRadius) ?? 0
+        shadowColor = try c.decodeIfPresent(ColorSpec.self, forKey: .shadowColor)
+            ?? ColorSpec("#000000", opacity: 0.45)
+        shadowY = try c.decodeIfPresent(Double.self, forKey: .shadowY) ?? 2
+        strokeColor = try c.decodeIfPresent(ColorSpec.self, forKey: .strokeColor)
+        strokeWidth = try c.decodeIfPresent(Double.self, forKey: .strokeWidth) ?? 1
+        gradientEnd = try c.decodeIfPresent(ColorSpec.self, forKey: .gradientEnd)
+        gradientAngle = try c.decodeIfPresent(Double.self, forKey: .gradientAngle) ?? 135
+        arcStart = try c.decodeIfPresent(Double.self, forKey: .arcStart) ?? 0
+        arcSweep = try c.decodeIfPresent(Double.self, forKey: .arcSweep) ?? 360
+        contentMode = try c.decodeIfPresent(ContentMode.self, forKey: .contentMode) ?? .fit
+    }
+
+    /// The fill as a shape style — a gradient when a second colour is set,
+    /// otherwise the flat colour. Type-erased because `fill` and `stroke` need
+    /// one concrete `ShapeStyle`, not a branch between two.
+    func paint(_ base: ColorSpec) -> AnyShapeStyle {
+        guard let end = gradientEnd else { return AnyShapeStyle(base.color) }
+        return AnyShapeStyle(LinearGradient(colors: [base.color, end.color],
+                                            startPoint: gradientStart,
+                                            endPoint: gradientStop))
+    }
+
+    private var gradientStart: UnitPoint {
+        let r = gradientAngle * .pi / 180
+        return UnitPoint(x: 0.5 - cos(r) * 0.5, y: 0.5 - sin(r) * 0.5)
+    }
+
+    private var gradientStop: UnitPoint {
+        let r = gradientAngle * .pi / 180
+        return UnitPoint(x: 0.5 + cos(r) * 0.5, y: 0.5 + sin(r) * 0.5)
     }
 }
 
