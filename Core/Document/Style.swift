@@ -111,9 +111,10 @@ struct FontSpec: Codable, Hashable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        size = try c.decode(Double.self, forKey: .size)
-        weight = try c.decode(Weight.self, forKey: .weight)
-        design = try c.decode(Design.self, forKey: .design)
+        // Defaulted, not required. See the note on Style's own decoder.
+        size = try c.decodeIfPresent(Double.self, forKey: .size) ?? 13
+        weight = try c.decodeIfPresent(Weight.self, forKey: .weight) ?? .regular
+        design = try c.decodeIfPresent(Design.self, forKey: .design) ?? .default
         monospacedDigits = try c.decodeIfPresent(Bool.self, forKey: .monospacedDigits) ?? true
         family = try c.decodeIfPresent(String.self, forKey: .family)
     }
@@ -289,14 +290,24 @@ struct Style: Codable, Hashable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        font = try c.decode(FontSpec.self, forKey: .font)
-        foreground = try c.decode(ColorSpec.self, forKey: .foreground)
+        // Every field defaulted, including the ones that have been here since
+        // schema 1.
+        //
+        // Half-tolerance is not tolerance. The post-schema-2 fields were
+        // already optional while these were required, which means a document
+        // missing any one of them fails to decode *entirely* — and that failure
+        // is invisible, because slot one falls back to any document of the
+        // right size and the desktop simply shows a different design. The same
+        // shape of bug was found and fixed in `Format`; this is the rest of it.
+        font = try c.decodeIfPresent(FontSpec.self, forKey: .font) ?? FontSpec(size: 13)
+        foreground = try c.decodeIfPresent(ColorSpec.self, forKey: .foreground)
+            ?? ColorSpec("#FFFFFF")
         fill = try c.decodeIfPresent(ColorSpec.self, forKey: .fill)
-        alignment = try c.decode(TextAlignment.self, forKey: .alignment)
-        lineLimit = try c.decode(Int.self, forKey: .lineLimit)
-        cornerRadius = try c.decode(Double.self, forKey: .cornerRadius)
-        lineWidth = try c.decode(Double.self, forKey: .lineWidth)
-        opacity = try c.decode(Double.self, forKey: .opacity)
+        alignment = try c.decodeIfPresent(TextAlignment.self, forKey: .alignment) ?? .leading
+        lineLimit = try c.decodeIfPresent(Int.self, forKey: .lineLimit) ?? 1
+        cornerRadius = try c.decodeIfPresent(Double.self, forKey: .cornerRadius) ?? 0
+        lineWidth = try c.decodeIfPresent(Double.self, forKey: .lineWidth) ?? 6
+        opacity = try c.decodeIfPresent(Double.self, forKey: .opacity) ?? 1
         rotation = try c.decodeIfPresent(Double.self, forKey: .rotation) ?? 0
         tracking = try c.decodeIfPresent(Double.self, forKey: .tracking) ?? 0
         shadowRadius = try c.decodeIfPresent(Double.self, forKey: .shadowRadius) ?? 0

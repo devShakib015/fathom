@@ -143,6 +143,21 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
         return copy
     }
 
+    /// Every distinct thing this design does when clicked, in plain words.
+    var declaredActions: [String] {
+        var found: [String] = []
+        func walk(_ elements: [Element]) {
+            for element in elements {
+                if let line = element.action?.disclosure, !found.contains(line) {
+                    found.append(line)
+                }
+                walk(element.children)
+            }
+        }
+        walk(elements)
+        return found
+    }
+
     var sanitised: WidgetDoc {
         var copy = self
         copy.minimumRefresh = max(minimumRefresh, WidgetDoc.refreshFloor)

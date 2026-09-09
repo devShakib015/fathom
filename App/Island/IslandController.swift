@@ -61,6 +61,10 @@ final class IslandController {
               let doc = DocumentStore.shared.document(id: island.documentID) else { return }
 
         let model = IslandModel(doc: doc)
+        // Actions run here, in the app, never in the extension.
+        model.perform = { [weak self] action in
+            ActionRunner.run(action) { Task { await self?.refresh() } }
+        }
         self.model = model
 
         let hosting = NSHostingView(rootView: IslandContent(model: model))
@@ -280,6 +284,9 @@ final class IslandWindow: NSPanel {
 final class IslandModel {
     var doc: WidgetDoc
     var data = ResolvedData()
+    /// Set by the controller. Present only on surfaces Fathom owns, which is
+    /// what makes an action inert in the widget extension by construction.
+    @ObservationIgnored var perform: ((Action) -> Void)?
     init(doc: WidgetDoc) { self.doc = doc }
 }
 
@@ -289,7 +296,8 @@ private struct IslandContent: View {
     var body: some View {
         ZStack {
             model.doc.background.swatch
-            WidgetCanvas(doc: model.doc, data: model.data)
+            WidgetCanvas(doc: model.doc, data: model.data,
+                         perform: { model.perform?($0) })
         }
         // Fully rounded rather than the widget corner radius: an island reads
         // as a capsule hanging from the notch, not as a small widget.

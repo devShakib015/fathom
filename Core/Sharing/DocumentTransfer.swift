@@ -27,11 +27,19 @@ enum DocumentTransfer {
         /// version cannot draw.
         var isFromNewerVersion: Bool
         var elementCount: Int
+        /// What clicking it will do, in plain words, one line per action.
+        ///
+        /// A design that opens a link or runs a shortcut when clicked is the
+        /// single most important thing to tell somebody *before* they install
+        /// it, and the only point at which telling them is useful.
+        var actions: [String]
 
         /// True when the document does nothing the recipient has to think
-        /// about — no network, no personal data, nothing missing.
+        /// about — no network, no personal data, nothing missing, nothing that
+        /// happens when it is clicked.
         var isInert: Bool {
-            hosts.isEmpty && permissions.isEmpty && missingFonts.isEmpty && !isFromNewerVersion
+            hosts.isEmpty && permissions.isEmpty && missingFonts.isEmpty
+                && actions.isEmpty && !isFromNewerVersion
         }
     }
 
@@ -76,7 +84,8 @@ enum DocumentTransfer {
             permissions: doc.sources.map(\.kind).filter(\.needsPermission).uniqued(),
             missingFonts: FontCatalogue.missing(in: doc),
             isFromNewerVersion: doc.schemaVersion > WidgetDoc.currentSchemaVersion,
-            elementCount: doc.elements.allIDs().count)
+            elementCount: doc.elements.allIDs().count,
+            actions: doc.declaredActions)
     }
 
     static func inspect(contentsOf url: URL) throws -> Inspection {

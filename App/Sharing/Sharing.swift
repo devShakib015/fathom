@@ -112,7 +112,15 @@ struct ImportSheet: View {
 
             if inspection.isInert {
                 row("checkmark.seal.fill", Palette.accent,
-                    "This widget contacts nothing and reads nothing personal.")
+                    "This widget contacts nothing, reads nothing personal, and does nothing when clicked.")
+            }
+
+            // Listed above the hosts, because it is the line most likely to
+            // make somebody decide not to install a design a stranger sent
+            // them.
+            ForEach(inspection.actions, id: \.self) { action in
+                row("cursorarrow.click", .orange,
+                    "When clicked: **\(action)**")
             }
 
             ForEach(inspection.hosts, id: \.self) { host in

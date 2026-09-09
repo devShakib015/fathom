@@ -297,4 +297,30 @@ struct CounterTests {
         let back = try JSONDecoder().decode(Format.self, from: try JSONEncoder().encode(format))
         #expect(back == format)
     }
+
+    @Test("a style missing everything decodes to a drawable default")
+    func tolerantStyle() throws {
+        // Half-tolerance is not tolerance: the post-schema-2 fields were
+        // optional while the schema-1 ones were required, so a document missing
+        // any one of those failed to decode entirely — invisibly, because slot
+        // one falls back to any document of the right size and the desktop just
+        // shows a different design.
+        let style = try JSONDecoder().decode(Style.self, from: Data("{}".utf8))
+        #expect(style.opacity == 1)
+        #expect(style.alignment == .leading)
+        #expect(style.font.size > 0)
+        #expect(!style.foreground.hex.isEmpty)
+    }
+
+    @Test("an element with only an id, kind and frame decodes")
+    func minimalElement() throws {
+        let json = #"""
+        {"id":"5B1F0F1A-0000-4000-A000-000000000001","kind":"text",
+         "frame":{"x":0,"y":0,"width":1,"height":1},"style":{}}
+        """#
+        let element = try JSONDecoder().decode(Element.self, from: Data(json.utf8))
+        #expect(element.kind == .text)
+        #expect(element.children.isEmpty)
+        #expect(element.action == nil)
+    }
 }

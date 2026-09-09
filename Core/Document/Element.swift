@@ -35,6 +35,9 @@ struct Element: Codable, Identifiable, Hashable {
     /// most common things anyone wants from a data-driven design, and without
     /// it every such widget needs a second document.
     var visibleWhen: String?
+    /// What clicking it does, on the surfaces that can be clicked. Nil is the
+    /// same as `.none` and is what almost every element is.
+    var action: Action?
 
     init(id: UUID = UUID(),
          name: String? = nil,
@@ -44,7 +47,8 @@ struct Element: Codable, Identifiable, Hashable {
          text: String = "",
          binding: DataBinding? = nil,
          children: [Element] = [],
-         visibleWhen: String? = nil) {
+         visibleWhen: String? = nil,
+         action: Action? = nil) {
         self.id = id
         self.name = name
         self.kind = kind
@@ -54,11 +58,12 @@ struct Element: Codable, Identifiable, Hashable {
         self.binding = binding
         self.children = children
         self.visibleWhen = visibleWhen
+        self.action = action
     }
 
-    /// Older documents have no `children` or `visibleWhen` key at all.
+    /// Older documents have no `children`, `visibleWhen` or `action` key.
     enum CodingKeys: String, CodingKey {
-        case id, name, kind, frame, style, text, binding, children, visibleWhen
+        case id, name, kind, frame, style, text, binding, children, visibleWhen, action
     }
 
     init(from decoder: Decoder) throws {
@@ -72,6 +77,7 @@ struct Element: Codable, Identifiable, Hashable {
         binding = try c.decodeIfPresent(DataBinding.self, forKey: .binding)
         children = try c.decodeIfPresent([Element].self, forKey: .children) ?? []
         visibleWhen = try c.decodeIfPresent(String.self, forKey: .visibleWhen)
+        action = try c.decodeIfPresent(Action.self, forKey: .action)
     }
 
     var isContainer: Bool { kind == .repeater || kind == .group }

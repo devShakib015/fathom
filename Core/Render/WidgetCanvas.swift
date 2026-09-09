@@ -10,6 +10,15 @@ import SwiftUI
 struct WidgetCanvas: View {
     let doc: WidgetDoc
     let data: ResolvedData
+    /// What to do when an element with an action is clicked.
+    ///
+    /// Nil — the default, and what the widget extension always passes — makes
+    /// every element inert. Interaction is therefore off by construction rather
+    /// than by a flag somebody has to remember to clear: the extension cannot
+    /// perform an action because it has nothing to perform it with. WidgetKit
+    /// could not honour one anyway; §6 trap 7 records what happened to App
+    /// Intents here.
+    var perform: ((Action) -> Void)?
 
     var body: some View {
         GeometryReader { geo in
@@ -24,7 +33,7 @@ struct WidgetCanvas: View {
             ZStack(alignment: .topLeading) {
                 Color.clear
                 ElementList(elements: doc.elements, doc: doc, data: data,
-                            scope: .root, box: size, scale: scale)
+                            scope: .root, box: size, scale: scale, perform: perform)
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
         }
@@ -41,6 +50,7 @@ struct ElementList: View {
     let scope: ResolvedData.Scope
     let box: CGSize
     let scale: Double
+    var perform: ((Action) -> Void)?
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -48,7 +58,7 @@ struct ElementList: View {
                 if data.isVisible(element, in: doc, scope: scope) {
                     let rect = element.frame.resolved(in: box)
                     PlacedElement(element: element, doc: doc, data: data, scope: scope,
-                                  size: rect.size, scale: scale)
+                                  size: rect.size, scale: scale, perform: perform)
                         .frame(width: rect.width, height: rect.height)
                         .offset(x: rect.minX, y: rect.minY)
                 }
@@ -68,15 +78,47 @@ private struct PlacedElement: View {
     let scope: ResolvedData.Scope
     let size: CGSize
     let scale: Double
+    var perform: ((Action) -> Void)?
+
+    private var action: Action? {
+        guard let action = element.action, action.isSet, perform != nil else { return nil }
+        return action
+    }
 
     var body: some View {
-        ElementView(element: element, doc: doc, data: data, scope: scope, size: size, scale: scale)
+        ElementView(element: element, doc: doc, data: data, scope: scope,
+                    size: size, scale: scale, perform: perform)
             .opacity(element.style.opacity)
             .rotationEffect(.degrees(element.style.rotation))
             .shadow(color: element.style.shadowRadius > 0
                     ? element.style.shadowColor.color : .clear,
                     radius: element.style.shadowRadius * scale,
                     y: element.style.shadowY * scale)
+            .modifier(Clickable(action: action, perform: perform))
+    }
+}
+
+/// Makes an element clickable, and only when there is something to click for.
+///
+/// A separate modifier so the non-interactive path adds nothing at all — no
+/// gesture, no hit-testing change, no pointer cursor. The extension renders the
+/// same view it always did.
+private struct Clickable: ViewModifier {
+    let action: Action?
+    let perform: ((Action) -> Void)?
+
+    func body(content: Content) -> some View {
+        if let action, let perform {
+            content
+                // The whole box, not just the drawn glyph: a click target the
+                // size of a colon in a clock is not a click target.
+                .contentShape(Rectangle())
+                .onTapGesture { perform(action) }
+                .pointerStyle(.link)
+                .help(action.disclosure ?? "")
+        } else {
+            content
+        }
     }
 }
 
@@ -89,6 +131,9 @@ struct ElementView: View {
     /// The element's own box, already resolved to points.
     let size: CGSize
     let scale: Double
+    /// Passed down so an action inside a group — or on one row of a repeater —
+    /// works. A list of links is the case that makes repeaters worth clicking.
+    var perform: ((Action) -> Void)?
 
     private var style: Style { element.style }
 
@@ -302,7 +347,7 @@ struct ElementView: View {
 
     private var group: some View {
         ElementList(elements: element.children, doc: doc, data: data,
-                    scope: scope, box: size, scale: scale)
+                    scope: scope, box: size, scale: scale, perform: perform)
     }
 
     /// One child template, drawn once per item of a bound array.
@@ -323,7 +368,7 @@ struct ElementView: View {
                                 scope: ResolvedData.Scope(item: rows[index],
                                                           index: index,
                                                           total: limit),
-                                box: cell.size, scale: scale)
+                                box: cell.size, scale: scale, perform: perform)
                 }
             }
         }

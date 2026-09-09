@@ -100,6 +100,10 @@ final class OverlayController {
         guard let doc = DocumentStore.shared.document(id: overlay.documentID) else { return }
 
         let model = models[overlay.id] ?? OverlayModel(doc: doc)
+        // Actions run here, in the app, never in the extension.
+        model.perform = { [weak self] action in
+            ActionRunner.run(action) { Task { await self?.refresh(overlay) } }
+        }
         model.doc = doc
         models[overlay.id] = model
 
@@ -169,6 +173,9 @@ final class OverlayController {
 final class OverlayModel {
     var doc: WidgetDoc
     var data = ResolvedData()
+    /// Set by the controller. Present only on surfaces Fathom owns, which is
+    /// what makes an action inert in the widget extension by construction.
+    @ObservationIgnored var perform: ((Action) -> Void)?
     init(doc: WidgetDoc) { self.doc = doc }
 }
 
@@ -183,7 +190,8 @@ private struct OverlayContent: View {
     var body: some View {
         ZStack {
             model.doc.background.swatch
-            WidgetCanvas(doc: model.doc, data: model.data)
+            WidgetCanvas(doc: model.doc, data: model.data,
+                         perform: { model.perform?($0) })
         }
         .clipShape(RoundedRectangle(cornerRadius: WidgetDoc.Family.cornerRadius, style: .continuous))
     }

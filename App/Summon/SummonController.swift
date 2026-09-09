@@ -64,6 +64,10 @@ final class SummonController {
               let screen = pointerScreen() else { return }
 
         let model = SummonModel(doc: doc, dims: summon.dimsBackground)
+        // Actions run here, in the app, never in the extension.
+        model.perform = { [weak self] action in
+            ActionRunner.run(action) { Task { await self?.refresh() } }
+        }
         model.onDismiss = { [weak self] in self?.hide() }
         self.model = model
 
@@ -232,6 +236,9 @@ final class SummonWindow: NSPanel {
 final class SummonModel {
     var doc: WidgetDoc
     var data = ResolvedData()
+    /// Set by the controller. Present only on surfaces Fathom owns, which is
+    /// what makes an action inert in the widget extension by construction.
+    @ObservationIgnored var perform: ((Action) -> Void)?
     var dims: Bool
     @ObservationIgnored var onDismiss: (() -> Void)?
     init(doc: WidgetDoc, dims: Bool) { self.doc = doc; self.dims = dims }
@@ -243,7 +250,8 @@ private struct SummonContent: View {
     var body: some View {
         ZStack {
             model.doc.background.swatch
-            WidgetCanvas(doc: model.doc, data: model.data)
+            WidgetCanvas(doc: model.doc, data: model.data,
+                         perform: { model.perform?($0) })
         }
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
