@@ -10,6 +10,11 @@ on:
 jobs:
   build:
     runs-on: macos-26
+    # Needed only by the release step. The default token is read-only in many
+    # repositories, and the failure would land at the very last step of a
+    # ten-minute job.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
