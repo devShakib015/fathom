@@ -21,9 +21,25 @@ accounts, no network calls except the ones your own widget makes.
 
 ## Status
 
-Early. The universal widget extension renders a stored document end to end:
-six primitives, a binding system, and the system data source. The editor is
-next.
+Working, unreleased. There is an editor, a catalogue of 680 ready-made designs
+across 20 palettes, and one document format that five different surfaces read:
+
+| Surface | What it is |
+|---|---|
+| **Widgets** | Real WidgetKit widgets, ten slots, in Notification Centre and on the desktop |
+| **Overlays** | Windows Fathom draws itself — any size, anywhere, no 64-second floor |
+| **Menu bar** | A design in the menu bar, 22 points tall |
+| **Island** | A strip under the notch that appears when the pointer reaches it |
+| **Summon** | A panel on a global hotkey, gone again when you press Escape |
+
+Only the first is a WidgetKit widget, and only the first is subject to the
+sixty-four second floor. The other four are windows Fathom owns and refresh as
+often as they like.
+
+Ten drawing primitives, an expression language, JSON endpoints with browsable
+trees, calendar and reminders, a rules engine, sharing, and on-device design
+generation through Apple's Foundation Models. Location fills in `{latitude}`
+and `{longitude}` so a shared weather design is about whoever opened it.
 
 ## How it works
 
@@ -80,10 +96,16 @@ with the right entitlements and reads the signature back to check.
 xcodebuild test -project Fathom.xcodeproj -scheme FathomTests -destination 'platform=macOS'
 ```
 
-44 tests over the interpreter, the expression language, the JSON parser, format
-inference, the document format and the element tree — the code where a
-regression would be silent rather than loud. A widget that renders a slightly
-wrong number every sixty-four seconds tells nobody anything.
+90 tests over the interpreter, the expression language, the JSON parser, format
+inference, the document format, the element tree, slots, rules, sharing,
+location tokens and hotkeys — the code where a regression would be silent
+rather than loud. A widget that renders a slightly wrong number every
+sixty-four seconds tells nobody anything.
+
+They do not cover the parts that only fail on a real machine, which is
+deliberate: signing, sandboxing, permission grants and whether an extension is
+registered at all cannot be tested from a test target. Those are measured on an
+installed build, and `SPEC.md` §6 is the record of what that has cost so far.
 
 ## Installing a release
 
