@@ -90,6 +90,27 @@ struct LocationTests {
         #expect(!mine.migrated.usesLocation)
     }
 
+    @Test("a caption naming the placeholder city is dropped, not left contradicting the data")
+    func captionMigration() {
+        // Seen on a real desktop: the endpoint had been migrated and was
+        // correctly returning Dhaka while the caption underneath still read
+        // Dubai. A document that contradicts itself is worse than a stale one.
+        var doc = Starters.weekAheadLarge
+        doc.elements = [Element(name: "Footer", kind: .text,
+                                frame: Frame(x: 0, y: 0, width: 1, height: 0.1),
+                                text: "Dubai · Open-Meteo · refreshed every 64 s")]
+        #expect(doc.sanitised.elements[0].text == "Open-Meteo · refreshed every 64 s")
+    }
+
+    @Test("a caption the user wrote is untouched")
+    func captionMigrationIsNarrow() {
+        var doc = Starters.weekAheadLarge
+        doc.elements = [Element(name: "Footer", kind: .text,
+                                frame: Frame(x: 0, y: 0, width: 1, height: 0.1),
+                                text: "My weather")]
+        #expect(doc.sanitised.elements[0].text == "My weather")
+    }
+
     @Test("the unknown place is marked unauthorised and still renders")
     func unknownPlace() {
         let place = Place.unknown

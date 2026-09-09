@@ -19,6 +19,7 @@ struct FathomApp: App {
     @State private var rules = RuleEngine()
     @State private var menuBar = MenuBarController()
     @State private var island = IslandController()
+    @State private var summon = SummonController()
     @Environment(\.openWindow) private var openWindow
 
     private func openAbout() { openWindow(id: AboutWindow.id) }
@@ -31,10 +32,12 @@ struct FathomApp: App {
                 .environment(rules)
                 .environment(menuBar)
                 .environment(island)
+                .environment(summon)
                 .task {
                     overlays.start()
                     menuBar.start()
                     island.start()
+                    summon.start()
                     // Resumes only if permission was already given. Nothing is
                     // asked for here; see LocationService.request().
                     LocationService.shared.start()
@@ -168,6 +171,7 @@ final class Library {
         OverlayStore.shared.removeAll(forDocument: doc.id)
         MenuBarStore.shared.removeAll(forDocument: doc.id)
         IslandStore.shared.clearIfUses(doc.id)
+        SummonStore.shared.clearIfUses(doc.id)
         if let slot = DocumentStore.shared.slot(holding: doc.id) {
             DocumentStore.shared.setActiveDocument(nil, for: slot)
         }

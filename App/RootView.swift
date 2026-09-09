@@ -7,6 +7,7 @@ struct RootView: View {
     @Environment(RuleEngine.self) private var rules
     @Environment(MenuBarController.self) private var menuBar
     @Environment(IslandController.self) private var island
+    @Environment(SummonController.self) private var summon
     @State private var editor: EditorModel?
     @State private var destination: Destination = .editor
     @State private var importing: DocumentTransfer.Inspection?
@@ -57,6 +58,7 @@ struct RootView: View {
                 overlays.documentChanged(new.id)
                 menuBar.documentChanged(new.id)
                 island.documentChanged(new.id)
+                summon.documentChanged(new.id)
             }
         }
     }

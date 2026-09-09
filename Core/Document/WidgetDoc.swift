@@ -83,6 +83,9 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
         copy.elements = elements.map {
             var e = $0
             e.frame = $0.frame.normalised
+            // A caption the shipped starters carried that the URL migration
+            // alone would leave contradicting its own endpoint.
+            if let replacement = DataSource.legacyCaptions[e.text] { e.text = replacement }
             return e
         }
         copy.sources = sources.map(\.migrated)

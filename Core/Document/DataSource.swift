@@ -112,6 +112,19 @@ struct DataSource: Codable, Identifiable, Hashable {
     /// deliberately typed their own coordinates keeps them.
     private static let shippedPlaceholder = "latitude=25.2048&longitude=55.2708"
 
+    /// Literals the shipped weather starters carried alongside the placeholder
+    /// coordinates, which the URL migration alone leaves behind.
+    ///
+    /// Seen on a real desktop: the endpoint had been migrated and was correctly
+    /// returning Dhaka, while the caption underneath still read "Dubai". A
+    /// document that contradicts itself is worse than one that is merely out of
+    /// date. The city is dropped rather than replaced, because migration runs at
+    /// load and a place can change afterwards — binding it to `place.label` is a
+    /// choice for the user to make, not one to make on their behalf.
+    static let legacyCaptions: [String: String] = [
+        "Dubai · Open-Meteo · refreshed every 64 s": "Open-Meteo · refreshed every 64 s",
+    ]
+
     var migrated: DataSource {
         guard kind == .json, let url, url.contains(Self.shippedPlaceholder) else { return self }
         var copy = self

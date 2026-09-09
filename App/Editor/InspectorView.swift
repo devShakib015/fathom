@@ -47,6 +47,8 @@ struct InspectorView: View {
                         MenuBarSection(doc: model.doc)
                         Divider().overlay(Palette.hairline)
                         IslandSection(doc: model.doc)
+                        Divider().overlay(Palette.hairline)
+                        SummonSection(doc: model.doc)
                     case .data:
                         SourcesInspector(model: model) { elementID, sourceID, keyPath, value in
                             model.bind(element: elementID, to: keyPath, value: value, source: sourceID)
