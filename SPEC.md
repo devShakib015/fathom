@@ -391,38 +391,10 @@ the shared store and stays accurate, so the app distinguishes "never asked" from
 "granted to a previous version" and says the latter out loud, offering *Grant
 again* rather than pretending nothing ever happened.
 
-### Trap 10 — a permission granted to the app does not reach the extension
+### Trap 10 — the extension process survives a reinstall
 
-Measured 9 Sep 2026, and it silently breaks a headline feature.
-
-Calendar access was granted to Fathom and confirmed in the app's own tree
-browser: `authorised: true`, live, in the editor. Minutes later, on the same
-Mac, the extension rendered the same document:
-
-```
-rendered slot=small doc=Calendar probe [Auth=false Count=0 Next=??]
-```
-
-The app and the extension are separate TCC subjects. The grant does not carry.
-
-This is the worst possible shape for a bug: the design previews correctly in the
-editor and shows nothing on the desktop, so the natural conclusion is that the
-document is wrong. Nothing reports an error, because from the extension's point
-of view there is simply no calendar.
-
-The fix is the one `Place` already uses, now generalised into a rule: **for any
-permission-shaped source, the app reads and writes a snapshot to the shared
-store, and the extension only ever reads it.** `CalendarCache` holds the
-snapshot and `CalendarKeeper` refreshes it while the app is open. Two costs are
-accepted deliberately: a widget is only as fresh as the last time the app ran,
-and event titles are written to disk in the 0700 shared container. The
-alternative to the second is not a more private calendar widget — it is a
-calendar widget that never works.
-
-### Trap 11 — the extension process survives a reinstall
-
-Measured 9 Sep 2026, while chasing trap 10, and it invalidates any measurement
-taken carelessly after a rebuild.
+Measured 9 Sep 2026, and it invalidates any measurement taken carelessly after a
+rebuild.
 
 A decoding fix was built, installed and verified working in the app. The
 extension kept reporting the old behaviour — nine documents where the store held
@@ -437,8 +409,52 @@ pkill -f FathomWidget
 After that, the very next timeline used the new binary and reported ten.
 
 So an extension measurement taken after a reinstall, without killing the
-extension first, is a measurement of the *previous* build. Every conclusion in
-this section that concerns the extension was re-checked against that.
+extension first, is a measurement of the *previous* build.
+
+### Trap 11 — measuring the app and the extension at different times
+
+This one is not macOS's fault. It is recorded because it produced a confident,
+wrong, written-down conclusion, and because everything else in this section is
+the kind of finding it could contaminate.
+
+The question was the open one above: does a permission grant reach the
+extension? The evidence looked decisive.
+
+```
+app  (editor, 10:10):  authorised: true
+extension    (10:21):  Auth=false Count=0
+```
+
+That was read as proof that the app and the extension are separate TCC
+subjects, written into this document as a trap, and answered with a whole
+mechanism — the app caching the calendar into the shared store for the
+extension to read, at the cost of writing event titles to disk.
+
+**It was wrong.** Between those two timestamps the app had been rebuilt and
+re-signed several times, and by trap 9 every one of those invalidated the grant
+— for the app as much as for the extension. The 10:21 reading was not the
+extension lacking a permission the app had. It was both of them lacking it.
+
+The real answer, measured properly by binding an element to a key that only a
+cached tree carries:
+
+```
+rendered slot=small doc=Calendar probe [Auth=true Count=0 FromCache=LIVE]
+```
+
+`LIVE` is the fallback — the key is absent, so the extension read EventKit
+itself. **A calendar grant made to Fathom does reach FathomWidget.** The cache
+was reverted along with the disk writes it justified.
+
+Two rules follow, and they are worth more than the wrong conclusion cost:
+
+* **Never compare a reading taken before a rebuild with one taken after.** Under
+  ad-hoc signing a rebuild changes what the machine is, not just what the code
+  is.
+* **When two components disagree, re-measure both at the same moment** before
+  concluding they differ. The cheap version here was checking whether the app
+  still had access at 10:21, which would have taken seconds and saved a feature
+  built on a false premise.
 
 ---
 

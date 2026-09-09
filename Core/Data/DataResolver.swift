@@ -187,16 +187,23 @@ enum DataResolver {
                 out.trees[source.id] = SystemSource.snapshot(now: now)
 
             case .calendar:
-                out.trees[source.id] = await calendarTree(
-                    live: await CalendarSource.events(now: now),
-                    kind: "events", source: source.id, into: &out,
-                    denied: "Fathom does not have calendar access.")
+                // Read live, in the app and in the extension alike. Measured:
+                // a calendar grant made to Fathom *does* reach FathomWidget.
+                // See SPEC.md §6 — an earlier version of this file cached the
+                // calendar into the shared store on the belief that it did not,
+                // which was a misreading of trap 9.
+                let tree = await CalendarSource.events(now: now)
+                out.trees[source.id] = tree
+                if tree[path: "authorised"] == .bool(false) {
+                    out.failures[source.id] = "No calendar access — an update resets this."
+                }
 
             case .reminders:
-                out.trees[source.id] = await calendarTree(
-                    live: await CalendarSource.reminders(now: now),
-                    kind: "reminders", source: source.id, into: &out,
-                    denied: "Fathom does not have reminders access.")
+                let tree = await CalendarSource.reminders(now: now)
+                out.trees[source.id] = tree
+                if tree[path: "authorised"] == .bool(false) {
+                    out.failures[source.id] = "No reminders access — an update resets this."
+                }
 
             case .json:
                 // A location-dependent endpoint is not called until there is a
@@ -251,30 +258,6 @@ enum DataResolver {
             }
         }
         return out
-    }
-
-    /// Reads live where permission exists, and from the app's snapshot where it
-    /// does not.
-    ///
-    /// Which side of that this runs on is never asked, because it does not need
-    /// to be: the app has the grant and so takes the live branch, writing what
-    /// it read; the extension never has the grant — measured, see
-    /// `CalendarCache` — and so takes the cached branch. One code path, and no
-    /// `#if` deciding who we are.
-    private static func calendarTree(live: DataValue, kind: String,
-                                     source: UUID, into out: inout ResolvedData,
-                                     denied: String) async -> DataValue {
-        if live[path: "authorised"] == .bool(true) {
-            CalendarCache.write(live, kind: kind)
-            return live
-        }
-        if let cached = CalendarCache.read(kind: kind),
-           cached[path: "authorised"] == .bool(true) {
-            out.isStale = true
-            return cached
-        }
-        out.failures[source] = denied
-        return live
     }
 
     static func fetch(_ url: URL) async throws -> DataValue {

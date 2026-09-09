@@ -237,7 +237,6 @@ private struct SourceRow: View {
         Task { @MainActor in
             let entity: EKEntityType = source.kind == .calendar ? .event : .reminder
             if await CalendarSource.requestAccess(to: entity) {
-                await CalendarKeeper.shared.refresh()
                 await model.resolve()
             } else {
                 // Denied outright, or denied once already — macOS will not ask
