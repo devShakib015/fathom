@@ -51,7 +51,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// update starts over at "not determined" — while the location the previous
     /// build resolved is still sitting in the shared store, still perfectly
     /// accurate. Saying "Not asked yet" over the top of a stored place is
-    /// technically true and completely baffling. See SPEC.md §6 trap 9.
+    /// technically true and completely baffling.
     var wasGrantedToAnEarlierBuild: Bool {
         status == .notDetermined && place != nil
     }

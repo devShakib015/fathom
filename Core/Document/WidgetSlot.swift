@@ -8,7 +8,7 @@ import Foundation
 /// pre-declared position that the app assigns a document to.
 ///
 /// It is not elegant — the widget gallery lists every slot — and it is here
-/// because the elegant version does not run at all (trap 7). Given the choice
+/// because the elegant version does not run at all. Given the choice
 /// between a picker that never appears and a numbered list that works, this is
 /// the one that puts widgets on the desktop.
 struct WidgetSlot: Hashable, Sendable, Identifiable {

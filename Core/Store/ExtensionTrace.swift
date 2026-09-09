@@ -5,7 +5,7 @@ import Foundation
 ///
 /// The unified log is not readable on every machine — `log show` returns
 /// nothing here — and a widget extension has no console, no debugger worth
-/// trusting (trap 4) and no UI beyond the widget face. But a sandboxed
+/// trusting, and no UI beyond the widget face. But a sandboxed
 /// extension can always write to its *own* container, and that container is
 /// plain to read from a shell. This is the probe's trick, reused: when the
 /// thing you are measuring cannot talk, give it a file.
@@ -50,7 +50,8 @@ enum ExtensionTrace {
 /// What the store can see, as a value rather than a log line.
 ///
 /// The widget renders this when it has nothing to draw, which turns an
-/// otherwise silent failure — trap 2 strips the App Group entitlement and
+/// otherwise silent failure — an ad-hoc signature strips the App Group
+/// entitlement and
 /// every widget renders blank forever — into something legible from across
 /// the room.
 struct StoreDiagnosis: Hashable, Sendable {

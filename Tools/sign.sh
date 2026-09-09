@@ -11,7 +11,7 @@
 # the embedded widget extension. The result installs, launches, and looks
 # completely normal — but the extension is no longer sandboxed, and macOS
 # silently refuses to register an unsandboxed widget extension. Green build,
-# working app, no widgets, no error anywhere. See SPEC.md §6 trap 7.
+# working app, no widgets, no error anywhere.
 #
 # So: sign inside out, name the entitlements explicitly, and verify afterwards
 # rather than trusting the exit code.

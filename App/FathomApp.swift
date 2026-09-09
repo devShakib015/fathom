@@ -59,7 +59,7 @@ struct FathomApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             // Replaces the stock About panel, which would show none of the
-            // three things section 2 requires be said plainly.
+            // three things Fathom promises: free, MIT, no telemetry.
             CommandGroup(replacing: .appInfo) {
                 Button("About \(AppInfo.name)") { openAbout() }
             }

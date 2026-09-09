@@ -9,7 +9,7 @@ import FoundationModels
 /// neither fast nor honest. The model helps you *build* a widget; the widget
 /// itself stays data.
 ///
-/// It also fits the section 2 promises exactly as they are written: on device,
+/// It also keeps Fathom's promises exactly as written: on device,
 /// no account, no network, no cost. Nothing typed here leaves the Mac.
 ///
 /// **What it is asked to do is narrow on purpose.** The system model is small,

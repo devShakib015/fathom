@@ -244,7 +244,7 @@ struct RootView: View {
     /// fallbacks and nothing else on the system will mention it.
     /// Storage diagnosis, shown only when there is something to diagnose.
     ///
-    /// This existed because trap 5 was invisible without it — an extension that
+    /// This existed because the failure was invisible without it — an extension that
     /// resolves the shared store and is then denied it looks exactly like an
     /// extension that is working. That reasoning holds only for the failure
     /// case. When the store is fine, a line of developer output pinned to the

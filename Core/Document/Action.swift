@@ -3,8 +3,8 @@ import Foundation
 /// What happens when someone clicks an element.
 ///
 /// Only on surfaces Fathom owns. A WidgetKit widget cannot do this — the
-/// framework's answer is App Intents, and §6 trap 7 records that
-/// `AppIntentConfiguration` never ran a single timeline in this project. So
+/// framework's answer is App Intents, and `AppIntentConfiguration` was tried
+/// here and never ran a single timeline. So
 /// actions are inert in the extension by construction rather than by
 /// permission, and the editor says which surfaces will honour them.
 ///

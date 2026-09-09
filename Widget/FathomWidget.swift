@@ -135,7 +135,7 @@ struct DocumentWidgetView: View {
 /// What a placed widget shows when it has nothing to draw — and, crucially,
 /// why.
 ///
-/// A widget extension has no console and no usable debugger (trap 4), and on
+/// A widget extension has no console and no usable debugger, and on
 /// this machine the unified log returns nothing at all. So the widget face is
 /// the diagnostic channel. "No widget yet" and "the shared store is denied to
 /// this build's signature" are completely different problems that would
@@ -186,11 +186,11 @@ struct EmptyStateView: View {
 
 // One `Widget` per slot. `StaticConfiguration` cannot be reconfigured once a
 // widget is placed, so several designs at one size means several widget kinds —
-// see `WidgetSlot` and trap 7.
+// see `WidgetSlot`.
 //
 // Written out rather than generated from a generic `SlotWidget<Identity>`, which
 // is what this was first. That version compiled and registered, and WidgetKit
-// then never asked any of it for a timeline again — the same silence as trap 7.
+// then never asked any of it for a timeline again — the same silence.
 // The shape that demonstrably works is a concrete type with a literal `kind`,
 // so that is the shape, ten times. Repetition that runs beats elegance that
 // does not.

@@ -20,7 +20,7 @@ settings:
     ENABLE_APP_SANDBOX: YES
     ENABLE_HARDENED_RUNTIME: YES
     # Trap 2: manual signing with no profile builds green and strips the
-    # entitlements, which lands you back in trap 1 with nothing to read.
+    # entitlements, and macOS then refuses to register the extension at all.
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: VKN4MYB5ZW
     SWIFT_STRICT_CONCURRENCY: minimal

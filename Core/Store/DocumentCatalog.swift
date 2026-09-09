@@ -3,7 +3,8 @@ import WidgetKit
 // Which document a placed widget shows.
 //
 // This once carried four App Intents configurations so each placement could
-// pick its own design. It does not any more; see trap 7 in SPEC.md. Under
+// pick its own design. It does not any more, because App Intents never ran
+// a timeline here. Under
 // AppIntentConfiguration this extension was asked for `placeholder` and never
 // once for a snapshot or a timeline — 151 timeline calls in the log, every one
 // of them from before the switch, and zero snapshots ever. Tried under both

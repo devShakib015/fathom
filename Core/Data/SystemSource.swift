@@ -268,7 +268,7 @@ enum SystemSource {
         // A sandboxed extension's home directory is its own container, but the
         // container lives on the boot volume, so volume-level capacity is the
         // same number the user sees in About This Mac. That is the one piece
-        // of trap 3 that works in our favour.
+        // piece of the sandbox's behaviour that works in our favour.
         let url = URL(fileURLWithPath: NSHomeDirectory())
         let keys: Set<URLResourceKey> = [.volumeAvailableCapacityForImportantUsageKey,
                                          .volumeTotalCapacityKey]

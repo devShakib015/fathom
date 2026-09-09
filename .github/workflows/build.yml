@@ -42,7 +42,7 @@ jobs:
       # Built unsigned, then ad-hoc signed by the project's own script. That is
       # the shipping path exactly: Fathom has no Developer ID, and sign.sh reads
       # the signature back to prove the sandbox and the shared-store exception
-      # survived it. SPEC.md §6 trap 8 is what happens when they do not.
+      # survived it: a replaced signature carries none unless handed them back.
       - name: Build
         run: |
           xcodebuild -project Fathom.xcodeproj -scheme Fathom \
@@ -74,4 +74,4 @@ jobs:
         run: |
           gh release create "${GITHUB_REF_NAME}" Fathom.zip \
             --title "Fathom ${GITHUB_REF_NAME}" \
-            --notes "Unsigned and ad-hoc signed. macOS will refuse it on first launch — open System Settings ▸ Privacy & Security and choose Open Anyway. See the README for why, and SPEC.md §6 trap 9 for why permissions reset on every update."
+            --notes "Unsigned and ad-hoc signed. macOS will refuse it on first launch — open System Settings ▸ Privacy & Security and choose Open Anyway. See the README for why, and why permissions reset on every update."

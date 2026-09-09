@@ -16,8 +16,8 @@ struct WidgetCanvas: View {
     /// every element inert. Interaction is therefore off by construction rather
     /// than by a flag somebody has to remember to clear: the extension cannot
     /// perform an action because it has nothing to perform it with. WidgetKit
-    /// could not honour one anyway; §6 trap 7 records what happened to App
-    /// Intents here.
+    /// could not honour one anyway: App Intents were tried here and never ran
+    /// a single timeline.
     var perform: ((Action) -> Void)?
 
     var body: some View {

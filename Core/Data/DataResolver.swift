@@ -193,9 +193,9 @@ enum DataResolver {
             case .calendar:
                 // Read live, in the app and in the extension alike. Measured:
                 // a calendar grant made to Fathom *does* reach FathomWidget.
-                // See SPEC.md §6 — an earlier version of this file cached the
-                // calendar into the shared store on the belief that it did not,
-                // which was a misreading of trap 9.
+                // An earlier version of this file cached the calendar into the
+                // shared store on the belief that it did not — a misreading of
+                // an ad-hoc rebuild having reset the grant for both of them.
                 let tree = await CalendarSource.events(now: now)
                 out.trees[source.id] = tree
                 if tree[path: "authorised"] == .bool(false) {

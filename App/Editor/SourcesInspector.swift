@@ -193,7 +193,7 @@ private struct SourceRow: View {
             Spacer(minLength: 4)
 
             // Fathom is ad-hoc signed, so every update is a new app to macOS
-            // and every privacy grant starts over (SPEC §6 trap 9). Location
+            // and every privacy grant starts over. Location
             // already offers a way back; without this, a calendar source whose
             // grant was invalidated by an update is stuck reporting no access
             // with nothing on screen to do about it.
