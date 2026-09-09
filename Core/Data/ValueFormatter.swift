@@ -51,7 +51,7 @@ enum ValueFormatter {
     }
 
     private static func duration(_ seconds: Double) -> String {
-        let total = Int(seconds.rounded())
+        let total = seconds.rounded().asInt
         let h = total / 3600
         let m = (total % 3600) / 60
         if h > 0 { return "\(h)h \(m)m" }

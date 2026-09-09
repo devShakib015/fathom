@@ -164,7 +164,7 @@ struct ExpressionEvaluator {
             return .null
 
         case "round":
-            let places = args.count > 1 ? max(0, min(Int(number(1)), 6)) : 0
+            let places = args.count > 1 ? max(0, min(number(1).asInt, 6)) : 0
             let factor = pow(10.0, Double(places))
             return .number((number(0) * factor).rounded() / factor)
         case "floor": return .number(number(0).rounded(.down))
@@ -173,7 +173,12 @@ struct ExpressionEvaluator {
         case "min": return .number(args.compactMap(\.doubleValue).min() ?? 0)
         case "max": return .number(args.compactMap(\.doubleValue).max() ?? 0)
         case "clamp": return .number(Swift.min(Swift.max(number(0), number(1)), number(2)))
-        case "pow": return .number(pow(number(0), number(1)))
+        case "pow":
+            // The one arithmetic function that can produce NaN from finite
+            // inputs — pow(-1, 0.5). This evaluator is total by construction
+            // everywhere else (1/0 is null, not infinity), so it is here too.
+            let raised = pow(number(0), number(1))
+            return raised.isFinite ? .number(raised) : .null
         case "sqrt": return .number(number(0) < 0 ? 0 : number(0).squareRoot())
 
         case "sum": return .number(list(0).reduce(0, +))
@@ -192,7 +197,7 @@ struct ExpressionEvaluator {
             }
         case "at":
             guard case .array(let items)? = args.first else { return .null }
-            let i = Int(number(1))
+            let i = number(1).asInt
             return items.indices.contains(i) ? items[i] : .null
         case "first":
             guard case .array(let items)? = args.first else { return .null }
@@ -202,8 +207,8 @@ struct ExpressionEvaluator {
             return items.last ?? .null
         case "slice":
             guard case .array(let items)? = args.first else { return .null }
-            let start = Swift.max(0, Int(number(1)))
-            let end = args.count > 2 ? Swift.min(items.count, Int(number(2))) : items.count
+            let start = Swift.max(0, number(1).asInt)
+            let end = args.count > 2 ? Swift.min(items.count, number(2).asInt) : items.count
             return start < end ? .array(Array(items[start..<end])) : .array([])
         case "join":
             guard case .array(let items)? = args.first else { return .string("") }
@@ -214,8 +219,8 @@ struct ExpressionEvaluator {
         case "trim": return .string(text(0).trimmingCharacters(in: .whitespacesAndNewlines))
         case "contains": return .bool(text(0).localizedCaseInsensitiveContains(text(1)))
         case "replace": return .string(text(0).replacingOccurrences(of: text(1), with: text(2)))
-        case "left": return .string(String(text(0).prefix(Swift.max(0, Int(number(1))))))
-        case "right": return .string(String(text(0).suffix(Swift.max(0, Int(number(1))))))
+        case "left": return .string(String(text(0).prefix(Swift.max(0, number(1).asInt))))
+        case "right": return .string(String(text(0).suffix(Swift.max(0, number(1).asInt))))
         case "length": return .number(Double(text(0).count))
 
         // Formatting, so an expression can produce a finished string. Mostly
@@ -226,7 +231,7 @@ struct ExpressionEvaluator {
         case "percent":
             return .string(ValueFormatter.string(args.first,
                                                  format: Format(kind: .percent,
-                                                                precision: args.count > 1 ? Int(number(1)) : 0),
+                                                                precision: args.count > 1 ? number(1).asInt : 0),
                                                  fallback: "—"))
         case "duration":
             return .string(ValueFormatter.string(args.first, format: Format(kind: .duration),
@@ -238,7 +243,7 @@ struct ExpressionEvaluator {
         case "fixed":
             return .string(ValueFormatter.string(args.first,
                                                  format: Format(kind: .number,
-                                                                precision: args.count > 1 ? Int(number(1)) : 1),
+                                                                precision: args.count > 1 ? number(1).asInt : 1),
                                                  fallback: "—"))
 
         case "num": return args.first?.doubleValue.map { .number($0) } ?? .null

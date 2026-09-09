@@ -120,6 +120,45 @@ struct ExpressionTests {
     func emptyExpression() throws {
         #expect(try evaluate("") == "36.7")
     }
+
+    @Test("a NaN or absurd count cannot crash the evaluator")
+    func trappingConversions() throws {
+        // `Int(someDouble)` terminates the process on NaN or an out-of-range
+        // magnitude — not throws, terminates. Confirmed with SIGTRAP. Both are
+        // reachable by someone other than the person running Fathom: an
+        // endpoint can send 1e30, and a document carrying an expression is a
+        // thing people share. Reaching the assertion at all is the test.
+        _ = try evaluate("fixed(1.5, 0/0)")
+        _ = try evaluate("fixed(1.5, pow(10, 30))")
+        _ = try evaluate("fixed(1.5, 0 - pow(10, 30))")
+        _ = try evaluate("left(\"hello\", pow(10, 30))")
+        _ = try evaluate("right(\"hello\", 0/0)")
+        _ = try evaluate("percent(0.5, pow(10, 30))")
+        _ = try evaluate("round(1.23456, pow(10, 30))")
+        _ = try evaluate("at(daily.temperature_2m_max, 0/0)")
+        _ = try evaluate("slice(daily.temperature_2m_max, 0/0, pow(10, 30))")
+        #expect(Bool(true))
+    }
+
+    @Test("pow stays total, like the rest of the language")
+    func powIsTotal() throws {
+        // pow(-1, 0.5) is NaN — the one arithmetic function that makes one from
+        // finite inputs. Division already returns null rather than infinity;
+        // this now matches.
+        #expect(try evaluate("pow(-1, 0.5)") == "")
+        #expect(try evaluate("pow(2, 3)") == "8")
+        #expect(try evaluate("pow(10, 400)") == "")   // overflows to infinity
+    }
+
+    @Test("the safe conversion clamps rather than trapping")
+    func safeConversion() {
+        #expect(Double.nan.asInt == 0)
+        #expect(Double.infinity.asInt > 0)
+        #expect((-Double.infinity).asInt < 0)
+        #expect((1e30).asInt > 0)
+        #expect((1e30).asInt == 9_007_199_254_740_992)
+        #expect((42.7).asInt == 42)
+    }
 }
 
 /// Text with expressions embedded in it.
