@@ -256,4 +256,45 @@ struct CounterTests {
                                        at: Date(timeIntervalSince1970: 1064), previous: previous)
         #expect(rate == nil)
     }
+
+    @Test("a binding missing a format field still decodes")
+    func tolerantFormat() throws {
+        // Synthesised Codable refuses the whole document over one absent field,
+        // and the failure is invisible: slot one falls back to any document of
+        // the right size, so the desktop shows a different design rather than
+        // an error. Measured on a real widget before this was fixed.
+        let json = """
+        {"sourceID":"5B1F0F1A-0000-4000-A000-000000000001","keyPath":"date.now",
+         "format":{"kind":"text","precision":0,"prefix":"","suffix":""},"fallback":"—"}
+        """
+        let binding = try JSONDecoder().decode(DataBinding.self, from: Data(json.utf8))
+        #expect(binding.keyPath == "date.now")
+        #expect(binding.format.kind == .text)
+        #expect(binding.format.dateStyle == .time)      // the missing one
+    }
+
+    @Test("a binding with nothing but a source id decodes")
+    func minimalBinding() throws {
+        let json = #"{"sourceID":"5B1F0F1A-0000-4000-A000-000000000001"}"#
+        let binding = try JSONDecoder().decode(DataBinding.self, from: Data(json.utf8))
+        #expect(binding.keyPath.isEmpty)
+        #expect(binding.fallback == "—")
+        #expect(binding.expression == nil)
+    }
+
+    @Test("an empty format object decodes to the text default")
+    func emptyFormat() throws {
+        let format = try JSONDecoder().decode(Format.self, from: Data("{}".utf8))
+        #expect(format.kind == .text)
+        #expect(format.precision == 0)
+        #expect(format.prefix.isEmpty)
+    }
+
+    @Test("a format still round-trips with every field set")
+    func formatRoundTrip() throws {
+        let format = Format(kind: .bytes, precision: 2, dateStyle: .shortWeekday,
+                            prefix: "~", suffix: " free")
+        let back = try JSONDecoder().decode(Format.self, from: try JSONEncoder().encode(format))
+        #expect(back == format)
+    }
 }

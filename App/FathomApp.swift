@@ -41,6 +41,9 @@ struct FathomApp: App {
                     // Resumes only if permission was already given. Nothing is
                     // asked for here; see LocationService.request().
                     LocationService.shared.start()
+                    // The extension cannot read the calendar; the app keeps its
+                    // snapshot fresh so a desktop widget has something true.
+                    CalendarKeeper.shared.start()
                     // The engine can put overlays on and off screen, so it
                     // needs to know who owns them.
                     rules.overlays = overlays

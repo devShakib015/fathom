@@ -59,6 +59,7 @@ struct RootView: View {
                 menuBar.documentChanged(new.id)
                 island.documentChanged(new.id)
                 summon.documentChanged(new.id)
+                Task { await CalendarKeeper.shared.refresh() }
             }
         }
     }

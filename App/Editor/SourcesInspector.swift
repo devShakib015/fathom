@@ -195,6 +195,17 @@ private struct SourceRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 4)
+
+            // Fathom is ad-hoc signed, so every update is a new app to macOS
+            // and every privacy grant starts over (SPEC §6 trap 9). Location
+            // already offers a way back; without this, a calendar source whose
+            // grant was invalidated by an update is stuck reporting no access
+            // with nothing on screen to do about it.
+            if source.kind.needsPermission, needsGrant {
+                Button("Grant again") { regrant() }
+                    .font(.system(size: 10))
+                    .buttonStyle(.link)
+            }
             if source.kind != .system {
                 Button {
                     model.removeSource(source.id)
@@ -213,11 +224,40 @@ private struct SourceRow: View {
                     in: RoundedRectangle(cornerRadius: 5))
     }
 
+    /// Whether macOS is currently refusing this source.
+    private var needsGrant: Bool {
+        switch source.kind {
+        case .calendar: !CalendarSource.isAuthorised(.event)
+        case .reminders: !CalendarSource.isAuthorised(.reminder)
+        default: false
+        }
+    }
+
+    private func regrant() {
+        Task { @MainActor in
+            let entity: EKEntityType = source.kind == .calendar ? .event : .reminder
+            if await CalendarSource.requestAccess(to: entity) {
+                await CalendarKeeper.shared.refresh()
+                await model.resolve()
+            } else {
+                // Denied outright, or denied once already — macOS will not ask
+                // twice, so the only route left is Settings.
+                if let url = URL(string:
+                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+        }
+    }
+
     private var status: String {
         if let failure = model.data.failures[source.id] { return failure }
         switch source.kind {
-        case .system, .calendar, .reminders:
+        case .system:
             return "Read on this Mac, never sent anywhere"
+        case .calendar, .reminders:
+            return needsGrant ? "No access — an update resets this"
+                              : "Read on this Mac, never sent anywhere"
         case .json:
             if model.data.trees[source.id] != nil {
                 return model.data.isStale ? "Cached" : source.host ?? ""

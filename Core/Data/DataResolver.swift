@@ -187,18 +187,16 @@ enum DataResolver {
                 out.trees[source.id] = SystemSource.snapshot(now: now)
 
             case .calendar:
-                let tree = await CalendarSource.events(now: now)
-                out.trees[source.id] = tree
-                if tree[path: "authorised"] == .bool(false) {
-                    out.failures[source.id] = "Fathom does not have calendar access."
-                }
+                out.trees[source.id] = await calendarTree(
+                    live: await CalendarSource.events(now: now),
+                    kind: "events", source: source.id, into: &out,
+                    denied: "Fathom does not have calendar access.")
 
             case .reminders:
-                let tree = await CalendarSource.reminders(now: now)
-                out.trees[source.id] = tree
-                if tree[path: "authorised"] == .bool(false) {
-                    out.failures[source.id] = "Fathom does not have reminders access."
-                }
+                out.trees[source.id] = await calendarTree(
+                    live: await CalendarSource.reminders(now: now),
+                    kind: "reminders", source: source.id, into: &out,
+                    denied: "Fathom does not have reminders access.")
 
             case .json:
                 // A location-dependent endpoint is not called until there is a
@@ -255,6 +253,30 @@ enum DataResolver {
         return out
     }
 
+    /// Reads live where permission exists, and from the app's snapshot where it
+    /// does not.
+    ///
+    /// Which side of that this runs on is never asked, because it does not need
+    /// to be: the app has the grant and so takes the live branch, writing what
+    /// it read; the extension never has the grant — measured, see
+    /// `CalendarCache` — and so takes the cached branch. One code path, and no
+    /// `#if` deciding who we are.
+    private static func calendarTree(live: DataValue, kind: String,
+                                     source: UUID, into out: inout ResolvedData,
+                                     denied: String) async -> DataValue {
+        if live[path: "authorised"] == .bool(true) {
+            CalendarCache.write(live, kind: kind)
+            return live
+        }
+        if let cached = CalendarCache.read(kind: kind),
+           cached[path: "authorised"] == .bool(true) {
+            out.isStale = true
+            return cached
+        }
+        out.failures[source] = denied
+        return live
+    }
+
     static func fetch(_ url: URL) async throws -> DataValue {
         var request = URLRequest(url: url)
         request.timeoutInterval = requestTimeout
@@ -307,19 +329,35 @@ enum SourceCache {
     /// Re-serialises the tree back to JSON. Round-tripping through the same
     /// parser on read means a cached value and a live value are indistinguish-
     /// able to everything downstream.
-    private static func encode(_ value: DataValue) -> Data? {
-        func plain(_ v: DataValue) -> Any {
-            switch v {
-            case .string(let s): s
-            case .number(let n): n
-            case .bool(let b): b
-            case .date(let d): ISO8601DateFormatter().string(from: d)
-            case .null: NSNull()
-            case .array(let items): items.map(plain)
-            case .object(let pairs): Dictionary(pairs.map { ($0.key, plain($0.value)) },
-                                                uniquingKeysWith: { a, _ in a })
-            }
-        }
-        return try? JSONSerialization.data(withJSONObject: plain(value), options: [.fragmentsAllowed])
+    static func encode(_ value: DataValue) -> Data? {
+        DataValueJSON.data(from: value)
     }
 }
+
+/// Turns a parsed tree back into JSON. Shared, because two caches now need it
+/// and a second copy would be a second set of edge cases.
+/// Turns a parsed tree back into JSON. Shared, because two caches now need it
+/// and a second copy would be a second set of edge cases.
+///
+/// Objects become dictionaries, so key order does not survive a round trip.
+/// That is tolerable only because everything downstream reads by path — the
+/// order matters for how a tree is *displayed*, not for what a binding finds.
+enum DataValueJSON {
+    static func plain(_ value: DataValue) -> Any {
+        switch value {
+        case .string(let s): s
+        case .number(let n): n
+        case .bool(let b): b
+        case .date(let d): ISO8601DateFormatter().string(from: d)
+        case .null: NSNull()
+        case .array(let items): items.map(plain)
+        case .object(let pairs): Dictionary(pairs.map { ($0.key, plain($0.value)) },
+                                            uniquingKeysWith: { a, _ in a })
+        }
+    }
+
+    static func data(from value: DataValue) -> Data? {
+        try? JSONSerialization.data(withJSONObject: plain(value), options: [.fragmentsAllowed])
+    }
+}
+

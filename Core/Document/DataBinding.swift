@@ -22,6 +22,21 @@ struct DataBinding: Codable, Hashable {
     var format: Format
     var fallback: String
 
+    /// Tolerant for the same reason `Format` is: a binding is nested inside an
+    /// element inside a document, so one missing field here loses all three.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        sourceID = try c.decode(UUID.self, forKey: .sourceID)
+        keyPath = try c.decodeIfPresent(String.self, forKey: .keyPath) ?? ""
+        expression = try c.decodeIfPresent(String.self, forKey: .expression)
+        format = try c.decodeIfPresent(Format.self, forKey: .format) ?? Format(kind: .text)
+        fallback = try c.decodeIfPresent(String.self, forKey: .fallback) ?? "—"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case sourceID, keyPath, expression, format, fallback
+    }
+
     init(sourceID: UUID,
          keyPath: String,
          expression: String? = nil,
@@ -64,6 +79,29 @@ struct Format: Codable, Hashable {
         self.dateStyle = dateStyle
         self.prefix = prefix
         self.suffix = suffix
+    }
+
+    /// Decoded field by field, with a default for every one.
+    ///
+    /// Synthesised `Codable` refuses a document that is missing any
+    /// non-optional field, and refusing is total: one absent `dateStyle` and
+    /// the whole document fails to open. Measured — a document written without
+    /// it did not merely lose its formatting, it vanished, and the extension
+    /// quietly rendered a different design in its place because slot one falls
+    /// back to any document of the right size. Every other stored type in this
+    /// project decodes tolerantly for exactly this reason; `Format` was the
+    /// hole in it.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try c.decodeIfPresent(Kind.self, forKey: .kind) ?? .text
+        precision = try c.decodeIfPresent(Int.self, forKey: .precision) ?? 0
+        dateStyle = try c.decodeIfPresent(DateStyle.self, forKey: .dateStyle) ?? .time
+        prefix = try c.decodeIfPresent(String.self, forKey: .prefix) ?? ""
+        suffix = try c.decodeIfPresent(String.self, forKey: .suffix) ?? ""
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case kind, precision, dateStyle, prefix, suffix
     }
 
     enum Kind: String, Codable, CaseIterable {

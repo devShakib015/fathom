@@ -5,10 +5,12 @@ mount it on the desktop. Plus a library of ready-made ones to start from.
 
 This document is written to be read cold. If you are an agent picking this up
 with no other context, everything you need to start is here, including the
-measurement the whole product rests on and the nine traps that will otherwise
-each cost you an afternoon. Traps 8 and 9 are about the shipping step and were
-found after everything else had already been verified — read §6 before you
-package anything, and before concluding that a permission request is broken.
+measurement the whole product rests on and the eleven traps that will otherwise
+each cost you an afternoon. Traps 8 to 11 are about shipping, permissions and
+the extension, and every one of them was found after the thing it broke had
+already been "verified" — read §6 before you package anything, before concluding
+that a permission request is broken, and before trusting any measurement taken
+from the extension after a reinstall.
 
 ---
 
@@ -191,7 +193,7 @@ App Group, however much it looks like the right answer — see trap 5.
 
 ---
 
-## 6. Nine traps, each measured the hard way
+## 6. Eleven traps, each measured the hard way
 
 These came out of building the probe. Every one produced a green build and a
 silently broken result.
@@ -388,6 +390,55 @@ What Fathom does about it is refuse to be baffling. The resolved place stays in
 the shared store and stays accurate, so the app distinguishes "never asked" from
 "granted to a previous version" and says the latter out loud, offering *Grant
 again* rather than pretending nothing ever happened.
+
+### Trap 10 — a permission granted to the app does not reach the extension
+
+Measured 9 Sep 2026, and it silently breaks a headline feature.
+
+Calendar access was granted to Fathom and confirmed in the app's own tree
+browser: `authorised: true`, live, in the editor. Minutes later, on the same
+Mac, the extension rendered the same document:
+
+```
+rendered slot=small doc=Calendar probe [Auth=false Count=0 Next=??]
+```
+
+The app and the extension are separate TCC subjects. The grant does not carry.
+
+This is the worst possible shape for a bug: the design previews correctly in the
+editor and shows nothing on the desktop, so the natural conclusion is that the
+document is wrong. Nothing reports an error, because from the extension's point
+of view there is simply no calendar.
+
+The fix is the one `Place` already uses, now generalised into a rule: **for any
+permission-shaped source, the app reads and writes a snapshot to the shared
+store, and the extension only ever reads it.** `CalendarCache` holds the
+snapshot and `CalendarKeeper` refreshes it while the app is open. Two costs are
+accepted deliberately: a widget is only as fresh as the last time the app ran,
+and event titles are written to disk in the 0700 shared container. The
+alternative to the second is not a more private calendar widget — it is a
+calendar widget that never works.
+
+### Trap 11 — the extension process survives a reinstall
+
+Measured 9 Sep 2026, while chasing trap 10, and it invalidates any measurement
+taken carelessly after a rebuild.
+
+A decoding fix was built, installed and verified working in the app. The
+extension kept reporting the old behaviour — nine documents where the store held
+ten — for several minutes and several reloads. The extension was still the
+previous binary: `pgrep -f FathomWidget` showed a process from before the
+install, and replacing `/Applications/Fathom.app` had not disturbed it.
+
+```
+pkill -f FathomWidget
+```
+
+After that, the very next timeline used the new binary and reported ten.
+
+So an extension measurement taken after a reinstall, without killing the
+extension first, is a measurement of the *previous* build. Every conclusion in
+this section that concerns the extension was re-checked against that.
 
 ---
 
