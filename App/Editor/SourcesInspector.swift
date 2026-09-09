@@ -134,13 +134,9 @@ struct SourcesInspector: View {
     }
 
     /// Host of a URL that may still contain location tokens.
-    private func host(of string: String) -> String? {
-        let trimmed = string.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return nil }
-        let bare = trimmed.replacingOccurrences(of: "\\{[A-Za-z]+\\}", with: "0",
-                                                options: .regularExpression)
-        return URL(string: bare)?.host
-    }
+    /// The same parse the sharing sheet uses, so the editor cannot accept an
+    /// endpoint the disclosure would describe differently.
+    private func host(of string: String) -> String? { DataSource.host(of: string) }
 
     private func addEndpoint() {
         let trimmed = newURL.trimmingCharacters(in: .whitespaces)

@@ -187,16 +187,22 @@ struct AboutView: View {
 
             HStack(spacing: 14) {
                 ForEach(AppInfo.authorLinks, id: \.label) { link in
-                    Link(link.label, destination: URL(string: link.url)!)
-                        .font(.system(size: 11))
+                    // No force unwrap. These are constants and they parse
+                    // today, but a typo in AppInfo would crash the About window
+                    // rather than show one dead link — the worst possible
+                    // trade for four characters saved.
+                    if let url = URL(string: link.url) {
+                        Link(link.label, destination: url)
+                            .font(.system(size: 11))
+                    }
                 }
             }
             .foregroundStyle(Palette.accent)
 
             HStack(spacing: 14) {
-                Link("Source code", destination: URL(string: AppInfo.repo)!)
-                Link("Releases", destination: URL(string: AppInfo.releases)!)
-                Link("Report a problem", destination: URL(string: AppInfo.issues)!)
+                externalLink("Source code", AppInfo.repo)
+                externalLink("Releases", AppInfo.releases)
+                externalLink("Report a problem", AppInfo.issues)
             }
             .font(.system(size: 11))
             .foregroundStyle(Palette.accent)
@@ -206,6 +212,13 @@ struct AboutView: View {
                 .foregroundStyle(Palette.textDim.opacity(0.8))
                 .padding(.top, 2)
         }
+    }
+
+    /// Named `externalLink` rather than `link`: the short name resolves to
+    /// POSIX `link(2)` when it is not in scope, so a helper in the wrong type
+    /// fails with a message about Int32 rather than about being missing.
+    @ViewBuilder private func externalLink(_ label: String, _ address: String) -> some View {
+        if let url = URL(string: address) { Link(label, destination: url) }
     }
 }
 

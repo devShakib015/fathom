@@ -151,4 +151,20 @@ struct LocationTests {
         place.country = nil
         #expect(place.label == "23.78, 90.40")
     }
+
+    @Test("the editor and the sharing sheet agree on what a URL will contact")
+    func oneHostParser() {
+        // These were two copies of the same parse, in two files, one of which
+        // decides whether an endpoint can be added and the other of which tells
+        // a stranger what a shared design will call. Two implementations of
+        // "what will this call?" is one more than a question with a security
+        // answer should have.
+        let tokenised = "https://api.open-meteo.com/v1/forecast?latitude={latitude}"
+        #expect(DataSource.host(of: tokenised) == "api.open-meteo.com")
+        #expect(DataSource(name: "x", kind: .json, url: tokenised).host == "api.open-meteo.com")
+
+        #expect(DataSource.host(of: "   ") == nil)
+        #expect(DataSource.host(of: "") == nil)
+        #expect(DataSource.host(of: "  https://example.com/a  ") == "example.com")
+    }
 }

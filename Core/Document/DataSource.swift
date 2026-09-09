@@ -138,12 +138,25 @@ struct DataSource: Codable, Identifiable, Hashable {
     /// for now and shipped later: the moment a widget can be handed to someone
     /// else, "what will this call?" has to be answerable without running it.
     var host: String? {
-        // Tokens are stripped before parsing: a URL with `{latitude}` in the
-        // query is not a legal URL, and the honest answer to "what will this
-        // call?" must not depend on whether location has been granted yet.
         guard kind == .json, let url else { return nil }
-        let bare = url.replacingOccurrences(of: "\\{[A-Za-z]+\\}", with: "0",
-                                            options: .regularExpression)
+        return Self.host(of: url)
+    }
+
+    /// The host a possibly-tokenised URL will contact.
+    ///
+    /// Shared, because the editor needs the same answer to decide whether an
+    /// endpoint can be added, and it had its own copy of this parse. Two
+    /// implementations of "what will this call?" is one more than a question
+    /// with a security answer should have.
+    ///
+    /// Tokens are stripped before parsing: a URL with `{latitude}` in the query
+    /// is not a legal URL, and the honest answer must not depend on whether
+    /// location has been granted yet.
+    static func host(of url: String) -> String? {
+        let trimmed = url.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        let bare = trimmed.replacingOccurrences(of: "\\{[A-Za-z]+\\}", with: "0",
+                                                options: .regularExpression)
         return URL(string: bare)?.host
     }
 
