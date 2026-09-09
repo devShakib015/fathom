@@ -78,6 +78,21 @@ final class EditorModel {
     /// the *current* state after every frame, and undo would silently become a
     /// no-op. Comparing before and after makes that whole class of feedback
     /// loop harmless.
+    /// Puts a different palette on without disturbing anything else.
+    ///
+    /// Through `edit`, so it undoes. Restyling is the change people most want
+    /// to try repeatedly and least want to commit to.
+    func restyle(to theme: Theme) {
+        let current = Restyle.currentTheme(of: doc)
+        let restyled = Restyle.apply(theme, to: doc, from: current)
+        edit("Restyle") { doc in
+            doc.background = restyled.background
+            doc.elements = restyled.elements
+            doc.paletteID = restyled.paletteID
+        }
+        Task { await resolve() }
+    }
+
     /// Puts the design back the way the catalogue shipped it.
     ///
     /// Goes through `edit`, so it lands on the undo stack like any other
@@ -90,6 +105,8 @@ final class EditorModel {
             doc.sources = original.sources
             doc.background = original.background
             doc.minimumRefresh = original.minimumRefresh
+            // Back to the palette it came with, not merely the layout.
+            doc.paletteID = nil
         }
         selection = []
         Task { await resolve() }

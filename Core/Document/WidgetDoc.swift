@@ -27,6 +27,17 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
     /// about rendering, which is why it does not move the schema version: an
     /// older build ignoring it renders exactly the same widget.
     var origin: String?
+    /// The palette this design is *wearing*, when it is not the one it came
+    /// with.
+    ///
+    /// Separate from `origin` because they answer different questions and
+    /// conflating them breaks both. `origin` is where the design came from and
+    /// is what Revert goes back to; overwriting it on a restyle would make
+    /// Revert restore the new colours, which is not reverting. Without this
+    /// field the palette picker kept naming the original theme after a
+    /// restyle — seen on screen, a design in sand and cream insisting it was
+    /// Mono.
+    var paletteID: String?
 
     /// 2 added binding expressions; 3 added nested children, conditional
     /// visibility, four element kinds and the second wave of style properties;
@@ -52,7 +63,8 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
          elements: [Element] = [],
          sources: [DataSource] = [],
          minimumRefresh: TimeInterval = WidgetDoc.refreshFloor,
-         origin: String? = nil) {
+         origin: String? = nil,
+         paletteID: String? = nil) {
         self.schemaVersion = WidgetDoc.currentSchemaVersion
         self.id = id
         self.name = name
@@ -62,6 +74,7 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
         self.sources = sources
         self.minimumRefresh = max(minimumRefresh, WidgetDoc.refreshFloor)
         self.origin = origin
+        self.paletteID = paletteID
     }
 
     /// Every host this document will contact when it refreshes. Sorted and

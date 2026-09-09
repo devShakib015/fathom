@@ -139,6 +139,47 @@ enum Intelligence {
             """
     }
 
+    // MARK: - Restyling
+
+    @Generable
+    struct PaletteChoice {
+        @Guide(description: "The id of the palette that best fits the mood asked for, copied exactly from the list of palettes given.")
+        var palette: String
+    }
+
+    /// Chooses a palette for a design that already exists.
+    ///
+    /// Narrower than `plan` on purpose, and narrower again than it looks: the
+    /// model is not asked to restyle anything. It picks one id out of twenty,
+    /// and the recolouring is done by `Restyle`, which is ordinary code with
+    /// tests. The model's whole job is understanding that "warmer" means Ember
+    /// and not Ice.
+    static func palette(for description: String) async throws -> Theme {
+        let session = LanguageModelSession(instructions: """
+            You choose a colour palette to match a mood. You are given a list of \
+            palettes, each with an id and a description of what it looks like. \
+            Answer with exactly one id, copied from the list. Never invent one.
+            """)
+
+        let palettes = Theme.all.map { "\($0.id): \($0.name) — \($0.mood)" }
+            .joined(separator: "\n")
+
+        let response = try await session.respond(to: """
+            Palettes:
+            \(palettes)
+
+            The person asked for: "\(description)"
+
+            Choose the palette id that best fits.
+            """, generating: PaletteChoice.self)
+
+        // Validated against the catalogue like every other answer, so a
+        // hallucinated id becomes a near match rather than a failure.
+        let ids = Theme.all.map(\.id)
+        let matched = PlanMatcher.match(response.content.palette, in: ids) ?? ids[0]
+        return Theme.named(matched)
+    }
+
     /// Picks the interesting fields out of an endpoint somebody just pasted.
     static func suggestFields(from paths: [(path: String, sample: String)]) async throws -> [FieldSuggestion] {
         // A small model with a small context: send the leaves, not the tree,
