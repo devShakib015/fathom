@@ -8,6 +8,7 @@ struct RootView: View {
     @Environment(MenuBarController.self) private var menuBar
     @Environment(IslandController.self) private var island
     @Environment(SummonController.self) private var summon
+    @Environment(WallpaperController.self) private var wallpaper
     @State private var editor: EditorModel?
     @State private var destination: Destination = .editor
     @State private var importing: DocumentTransfer.Inspection?
@@ -59,6 +60,7 @@ struct RootView: View {
                 menuBar.documentChanged(new.id)
                 island.documentChanged(new.id)
                 summon.documentChanged(new.id)
+                wallpaper.documentChanged(new.id)
             }
         }
     }
@@ -143,6 +145,9 @@ struct RootView: View {
         if let summonConfig = summon.summon, summonConfig.documentID == doc.id, summonConfig.isEnabled {
             return LivePlacement(symbol: "command", label: nil,
                              help: "Summoned with \(summonConfig.hotKey.displayName)")
+        }
+        if wallpaper.wallpaper?.documentID == doc.id, wallpaper.wallpaper?.isEnabled == true {
+            return LivePlacement(symbol: "photo.fill", label: nil, help: "Drawn into the desktop picture")
         }
         return nil
     }
