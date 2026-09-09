@@ -58,6 +58,14 @@ have. `WidgetCenter.reloadAllTimelines()` is served immediately. The editor can
 therefore push a change to the desktop the instant it is made, rather than making
 the user wait out a tick to see their own edit.
 
+**One qualification, from a full 24 hours.** Across 476 reloads the 64-second
+floor held whenever the Mac was awake — 461 of the gaps average 62.6 s. The
+other 14 are long (51 to 139 minutes) and all fall overnight: the system does
+not reload a widget nobody can look at, which is correct behaviour and not a
+budget. Design for it anyway. "Live" means *live while the machine is awake*, so
+a widget must render sensibly from data that may be hours old after a sleep, and
+the first reload after wake is the one that matters.
+
 The probe is at `~/Projects/Personal/widget-reload-probe` (its own git repo, no
 remote). `./analyse.sh` re-reads the log any time. **Re-run it before building
 anything that assumes the number**, and if it ever shows the gap widening, this
