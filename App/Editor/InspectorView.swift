@@ -345,6 +345,32 @@ private struct DocumentInspector: View {
                     .foregroundStyle(Palette.textDim)
                 Spacer()
             }
+
+            // Where it came from, and the way back.
+            //
+            // The catalogue exists to be duplicated and edited, which only
+            // works if editing is safe to try. Without this, the six hundred
+            // and eightieth design is as unrecoverable as the first edit made
+            // to it.
+            if let origin = model.doc.origin, let entry = Catalog.entry(origin) {
+                InspectorRow(label: "From") {
+                    Text(entry.name)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.textDim)
+                        .lineLimit(1)
+                    Spacer()
+                    if model.doc.differsFromOriginal {
+                        Button("Revert") { model.revertToOriginal() }
+                            .font(.system(size: 10))
+                            .buttonStyle(.link)
+                            .help("Put every element, style and source back the way \(entry.name) shipped. Your name for it is kept, and this can be undone.")
+                    } else {
+                        Text("unchanged")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Palette.textDim.opacity(0.7))
+                    }
+                }
+            }
             InspectorRow(label: "Backdrop") {
                 Picker("", selection: Binding(
                     get: { model.doc.background.kind },

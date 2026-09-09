@@ -16,6 +16,13 @@ struct InspectorSection<Content: View>: View {
                 .tracking(0.8)
             content
         }
+        // Takes the width it is given rather than the width it wants.
+        //
+        // Without this the section sizes to its content's ideal width, which a
+        // text field or a long label will happily push past the panel — and the
+        // ScrollView clips rather than compresses, so the overflow is invisible
+        // and unreachable. Seen as "Grant agai", "Use my locatio" and "Reve".
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
     }
@@ -33,6 +40,7 @@ struct InspectorRow<Content: View>: View {
                 .frame(width: 62, alignment: .leading)
             content
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

@@ -78,6 +78,23 @@ final class EditorModel {
     /// the *current* state after every frame, and undo would silently become a
     /// no-op. Comparing before and after makes that whole class of feedback
     /// loop harmless.
+    /// Puts the design back the way the catalogue shipped it.
+    ///
+    /// Goes through `edit`, so it lands on the undo stack like any other
+    /// change. A revert that could not itself be undone would be a worse trap
+    /// than the edit it undoes.
+    func revertToOriginal() {
+        guard let original = doc.shippedOriginal else { return }
+        edit("Revert to original") { doc in
+            doc.elements = original.elements
+            doc.sources = original.sources
+            doc.background = original.background
+            doc.minimumRefresh = original.minimumRefresh
+        }
+        selection = []
+        Task { await resolve() }
+    }
+
     func edit(_ name: String, coalescing: Bool = false, _ change: (inout WidgetDoc) -> Void) {
         let before = doc
         var updated = doc

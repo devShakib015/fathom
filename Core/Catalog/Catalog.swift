@@ -79,6 +79,16 @@ struct CatalogEntry: Identifiable, Hashable, Sendable {
 enum Catalog {
     static let templates: [CatalogTemplate] = Templates.all
 
+    /// The entry a document came from, if it came from one.
+    ///
+    /// `WidgetDoc.origin` has been written since the catalogue existed and read
+    /// by nothing, which made it a promise in a comment: "it lets the editor
+    /// offer revert to the original". Six hundred and eighty designs meant to be
+    /// duplicated and edited, and no way back from an edit.
+    static func entry(_ id: String) -> CatalogEntry? {
+        entries.first { $0.id == id }
+    }
+
     static func template(_ id: String) -> CatalogTemplate? {
         templates.first { $0.id == id }
     }

@@ -7,15 +7,29 @@ struct EditorView: View {
     @Bindable var model: EditorModel
 
     var body: some View {
-        HSplitView {
+        // An HStack, not an HSplitView.
+        //
+        // HSplitView remembers where its dividers were and will keep widths the
+        // window can no longer afford: the panes sum wider than the window and
+        // SwiftUI clips instead of re-laying out. The symptom was labels cut
+        // mid-word at the right edge with no scrollbar and no way to reach
+        // them — and pinning the inspector to a fixed width made it worse,
+        // pushing the sidebar off the left as well.
+        //
+        // The cost is that the dividers no longer drag. The rails are the
+        // fixed-width kind in every tool this resembles, and a layout that is
+        // always right beats one that is adjustable and sometimes broken.
+        HStack(spacing: 0) {
             leftRail
-                .frame(minWidth: 190, idealWidth: 210, maxWidth: 280)
+                .frame(width: 232)
+            Divider().overlay(Palette.hairline)
 
             CanvasView(model: model)
-                .frame(minWidth: 380)
+                .frame(maxWidth: .infinity)
+            Divider().overlay(Palette.hairline)
 
             InspectorView(model: model)
-                .frame(minWidth: 250, idealWidth: 272, maxWidth: 340)
+                .frame(width: 300)
         }
         .task(id: model.doc.id) { await model.resolve() }
         // Re-resolve on the same cadence the widget uses, so the canvas and the

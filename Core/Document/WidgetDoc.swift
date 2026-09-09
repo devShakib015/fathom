@@ -77,6 +77,59 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
     /// A document read from disk may have been written by a newer build, or
     /// hand-edited. Clamp the things that would otherwise render wrong rather
     /// than refusing to open it.
+    /// The catalogue design this one started as, if any.
+    var shippedOriginal: WidgetDoc? {
+        guard let origin, let entry = Catalog.entry(origin) else { return nil }
+        // Sanitised, because everything in the library has been through
+        // `sanitised` on the way in and out of the store. Comparing a stored
+        // document against a raw template build finds differences that the
+        // store itself introduced — frames normalised, refresh clamped — and
+        // reports a design as edited the moment it is added.
+        var original = entry.document().sanitised
+        // Identity and title are the user's, not the catalogue's. Reverting is
+        // about the design going back to how it shipped; it is not about
+        // undoing a rename, and it must not break a placement that refers to
+        // this document by id.
+        original.id = id
+        original.name = name
+        return original
+    }
+
+    /// Whether anything has been changed since it came out of the catalogue.
+    ///
+    /// Compared by encoding rather than by `==`, so a field added to the format
+    /// later cannot quietly make every document look modified — and with
+    /// element identifiers normalised away first, because a template mints
+    /// fresh ones on every build. Without that, an untouched design compares
+    /// unequal to itself and Revert offers itself to everybody, always.
+    var differsFromOriginal: Bool {
+        guard let original = shippedOriginal else { return false }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let a = try? encoder.encode(comparable),
+              let b = try? encoder.encode(original.comparable) else { return false }
+        return a != b
+    }
+
+    /// The same document with element identities replaced by their position in
+    /// the tree. Only ever used for comparison.
+    private var comparable: WidgetDoc {
+        var copy = self
+        var counter = 0
+        func renumber(_ elements: [Element]) -> [Element] {
+            elements.map { element in
+                var element = element
+                counter += 1
+                element.id = UUID(uuidString:
+                    String(format: "00000000-0000-0000-0000-%012d", counter)) ?? element.id
+                element.children = renumber(element.children)
+                return element
+            }
+        }
+        copy.elements = renumber(elements)
+        return copy
+    }
+
     var sanitised: WidgetDoc {
         var copy = self
         copy.minimumRefresh = max(minimumRefresh, WidgetDoc.refreshFloor)
