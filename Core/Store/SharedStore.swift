@@ -33,7 +33,21 @@ enum SharedStore {
     /// nil means the shared directory could not be created or read, which is
     /// the one failure that leaves every widget on the machine blank. Callers
     /// surface it rather than swallowing it.
+    /// Checked once, then remembered.
+    ///
+    /// This getter runs on every single store access — every document read,
+    /// every cache write, every counter sample — and it was listing the whole
+    /// directory each time to prove it was readable. It showed up in an idle
+    /// profile. The container does not become unreadable while the process
+    /// runs; if it ever did, every other operation would already be failing.
+    nonisolated(unsafe) private static var verifiedContainer: URL?
+    private static let containerLock = NSLock()
+
     static var container: URL? {
+        containerLock.lock()
+        defer { containerLock.unlock() }
+        if let verifiedContainer { return verifiedContainer }
+
         let fm = FileManager.default
         if !fm.fileExists(atPath: root.path) {
             // Readable and writable by this user only. /Users/Shared is world
@@ -42,7 +56,9 @@ enum SharedStore {
             try? fm.createDirectory(at: root, withIntermediateDirectories: true,
                                     attributes: [.posixPermissions: 0o700])
         }
-        return (try? fm.contentsOfDirectory(atPath: root.path)) != nil ? root : nil
+        guard (try? fm.contentsOfDirectory(atPath: root.path)) != nil else { return nil }
+        verifiedContainer = root
+        return root
     }
 
     static func directory(_ name: String) -> URL? {

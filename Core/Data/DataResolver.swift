@@ -184,7 +184,11 @@ enum DataResolver {
         for source in doc.sources {
             switch source.kind {
             case .system:
-                out.trees[source.id] = SystemSource.snapshot(now: now)
+                // Only the branches this design reads. A clock does not need
+                // the disk statted every five seconds.
+                out.trees[source.id] = SystemSource.snapshot(
+                    now: now,
+                    needed: doc.referencedRoots(among: SystemSource.branchNames))
 
             case .calendar:
                 // Read live, in the app and in the extension alike. Measured:

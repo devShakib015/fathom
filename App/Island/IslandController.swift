@@ -109,15 +109,40 @@ final class IslandController {
 
     private func startTracking() {
         tracking?.cancel()
+
+        // Nothing to watch for: it is always on screen and never expands, so
+        // there is no pointer question to answer. Polling anyway is what the
+        // first version did.
+        if island?.reveal == .always, !canExpand { return }
+
         tracking = Task { [weak self] in
             while !Task.isCancelled {
-                await MainActor.run { self?.followPointer() }
-                // Thirty times a second. One coordinate read, and the latency
-                // has to be below what reads as a delay when you flick the
-                // pointer to the top of the screen.
-                try? await Task.sleep(for: .milliseconds(33))
+                let interval = await MainActor.run { () -> Duration in
+                    self?.followPointer()
+                    return self?.pollInterval ?? .milliseconds(200)
+                }
+                try? await Task.sleep(for: interval)
             }
         }
+    }
+
+    /// How often to look, based on where the pointer already is.
+    ///
+    /// Thirty times a second, always, cost five percent of a core doing nothing
+    /// — measured as a CPU-time delta, because macOS's %CPU is averaged over a
+    /// process's whole life and will happily show a busy loop as idle once the
+    /// process is old enough.
+    ///
+    /// The rate can drop without costing anything, because the pointer cannot
+    /// arrive at the notch without first crossing the top of the screen. Far
+    /// away, five times a second is plenty to notice it entering the strip that
+    /// matters; inside that strip, the fast rate is back before the reveal is
+    /// wanted.
+    private var pollInterval: Duration {
+        guard state == .hidden else { return .milliseconds(33) }
+        guard let screen = targetScreen() else { return .milliseconds(200) }
+        let approaching = NSEvent.mouseLocation.y > screen.frame.maxY - screen.frame.height * 0.25
+        return approaching ? .milliseconds(33) : .milliseconds(200)
     }
 
     private func followPointer() {

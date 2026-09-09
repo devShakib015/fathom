@@ -9,36 +9,56 @@ import IOKit.ps
 /// process by then, so there is nothing to cache and nothing to invalidate.
 enum SystemSource {
 
-    static func snapshot(now: Date = Date()) -> DataValue {
+    /// Every branch this source can produce, so a caller can say which it
+    /// wants without hardcoding the list.
+    static let branchNames = ["date", "battery", "disk", "cpu", "memory",
+                              "network", "system", "devices", "place"]
+
+    /// `needed` nil means all of them, which is what a caller that cannot tell
+    /// should ask for — a missing branch reads as a missing value, and that is
+    /// a worse failure than a wasted `statfs`.
+    static func snapshot(now: Date = Date(), needed: Set<String>? = nil) -> DataValue {
+        func wants(_ name: String) -> Bool { needed?.contains(name) ?? true }
+
         // Counters are read once and stored, so the next reload can turn them
         // into rates. Done here rather than per-branch so one reload writes one
         // sample no matter how many branches ask for a rate.
-        let previous = CounterSamples.previous()
-        let ticks = HostMetrics.cpuTicks()
-        let traffic = HostMetrics.networkBytes()
-        var counters: [String: Double] = [
-            "net.in": traffic.received,
-            "net.out": traffic.sent,
-        ]
-        if let ticks {
-            counters["cpu.user"] = ticks.user
-            counters["cpu.system"] = ticks.system
-            counters["cpu.idle"] = ticks.idle
-            counters["cpu.nice"] = ticks.nice
-        }
-        CounterSamples.record(counters, at: now)
+        // Counters are read, and written back, only when something asks for a
+        // rate. This used to happen on every resolve: an atomic write to the
+        // shared store every few seconds, forever, for designs that never
+        // mentioned the CPU or the network.
+        let needsRates = wants("cpu") || wants("network")
+        let previous = needsRates ? CounterSamples.previous() : nil
+        let ticks = needsRates ? HostMetrics.cpuTicks() : nil
+        let traffic = needsRates ? HostMetrics.networkBytes() : (received: 0.0, sent: 0.0)
 
-        return .ordered([
-            ("date", dateBranch(now)),
-            ("battery", batteryBranch()),
-            ("disk", diskBranch()),
-            ("cpu", cpuBranch(ticks, now: now, previous: previous)),
-            ("memory", memoryBranch()),
-            ("network", networkBranch(traffic, now: now, previous: previous)),
-            ("system", hostBranch(now)),
-            ("devices", devicesBranch()),
-            ("place", placeBranch()),
-        ])
+        if needsRates {
+            var counters: [String: Double] = [
+                "net.in": traffic.received,
+                "net.out": traffic.sent,
+            ]
+            if let ticks {
+                counters["cpu.user"] = ticks.user
+                counters["cpu.system"] = ticks.system
+                counters["cpu.idle"] = ticks.idle
+                counters["cpu.nice"] = ticks.nice
+            }
+            CounterSamples.record(counters, at: now)
+        }
+
+        var branches: [(String, DataValue)] = []
+        if wants("date") { branches.append(("date", dateBranch(now))) }
+        if wants("battery") { branches.append(("battery", batteryBranch())) }
+        if wants("disk") { branches.append(("disk", diskBranch())) }
+        if wants("cpu") { branches.append(("cpu", cpuBranch(ticks, now: now, previous: previous))) }
+        if wants("memory") { branches.append(("memory", memoryBranch())) }
+        if wants("network") {
+            branches.append(("network", networkBranch(traffic, now: now, previous: previous)))
+        }
+        if wants("system") { branches.append(("system", hostBranch(now))) }
+        if wants("devices") { branches.append(("devices", devicesBranch())) }
+        if wants("place") { branches.append(("place", placeBranch())) }
+        return .ordered(branches)
     }
 
     /// The shape of the tree with no real values in it, for the editor's

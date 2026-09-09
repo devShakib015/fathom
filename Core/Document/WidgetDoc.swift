@@ -158,6 +158,70 @@ struct WidgetDoc: Codable, Identifiable, Hashable {
         return found
     }
 
+    /// The top-level source branches this design actually reads.
+    ///
+    /// Resolving used to compute every branch of the system source on every
+    /// refresh — statting the boot volume, reading host counters, enumerating
+    /// Bluetooth devices — for a clock that wanted the time. An overlay
+    /// refreshing every five seconds did all of that every five seconds,
+    /// forever, and it was the largest single cost in an idle profile.
+    ///
+    /// Deliberately over-inclusive. Key paths give an exact answer; expressions
+    /// and conditions are free text, so they are scanned for each name and a
+    /// match is believed. Computing one branch too many is a small waste;
+    /// computing one too few is a value that silently reads as missing.
+    func referencedRoots(among candidates: [String]) -> Set<String> {
+        var found: Set<String> = []
+        var free: [String] = []
+
+        func note(_ keyPath: String) {
+            let root = keyPath.split(separator: ".").first.map(String.init)
+                ?? keyPath.split(separator: "[").first.map(String.init) ?? keyPath
+            if !root.isEmpty { found.insert(root) }
+        }
+
+        func walk(_ elements: [Element]) {
+            for element in elements {
+                if let binding = element.binding {
+                    note(binding.keyPath)
+                    if let expression = binding.expression { free.append(expression) }
+                }
+                if let condition = element.visibleWhen { free.append(condition) }
+                free.append(element.text)
+                walk(element.children)
+            }
+        }
+        walk(elements)
+
+        // One pass, no regular expression.
+        //
+        // The first version ran an anchored regex per candidate per resolve and
+        // promptly appeared in the profile it was written to improve — nine
+        // NSRegularExpression compilations every few seconds. This walks the
+        // text once and collects identifiers that are not preceded by a dot,
+        // which is the same rule and costs nothing worth measuring.
+        var identifier = ""
+        var afterDot = false
+        var roots: Set<String> = []
+
+        func finish() {
+            if !identifier.isEmpty, !afterDot { roots.insert(identifier) }
+            identifier = ""
+        }
+
+        for character in free.joined(separator: "\n") {
+            if character.isLetter || character.isNumber || character == "_" {
+                identifier.append(character)
+            } else {
+                finish()
+                afterDot = character == "."
+            }
+        }
+        finish()
+
+        return found.union(roots.intersection(candidates))
+    }
+
     var sanitised: WidgetDoc {
         var copy = self
         copy.minimumRefresh = max(minimumRefresh, WidgetDoc.refreshFloor)
