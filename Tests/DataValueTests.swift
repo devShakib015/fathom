@@ -68,6 +68,46 @@ struct DataValueTests {
             try DataValue.parse("{not json".data(using: .utf8)!)
         }
     }
+
+    @Test("a response nested deep enough to blow the stack is truncated, not fatal")
+    func deepNestingIsBounded() {
+        // Reasoned about first and got it wrong: JSONSerialization refuses about
+        // a thousand levels and accepts five hundred, which was read as meaning
+        // the recursion could not be driven deep enough to matter. It could —
+        // five hundred frames of `convert` crashed the whole test process, and
+        // the depth comes from whatever an endpoint returns.
+        let deep = String(repeating: "[", count: 400) + String(repeating: "]", count: 400)
+        let parsed = try? DataValue.parse(Data(deep.utf8))
+        #expect(parsed != nil)
+
+        // Past the limit the branch is null rather than the process being gone.
+        var value = parsed
+        for _ in 0..<DataValue.maximumDepth {
+            guard case .array(let items)? = value else { break }
+            value = items.first
+        }
+        #expect(value == .null || value == nil)
+    }
+
+    @Test("an ordinary depth is untouched by the limit")
+    func normalDepthSurvives() {
+        // Real endpoints nest five to eight levels; the limit must be invisible
+        // to them or it has traded one silent failure for another.
+        let json = #"{"a":{"b":{"c":{"d":{"e":{"f":{"g":{"h":42}}}}}}}}"#
+        let parsed = try? DataValue.parse(Data(json.utf8))
+        #expect(parsed?[path: "a.b.c.d.e.f.g.h"] == .number(42))
+    }
+
+    @Test("the response ceiling is generous but finite")
+    func responseCeiling() {
+        // A widget extension has a hard memory ceiling, and exceeding it gets
+        // the extension killed and replaced by a blank placeholder with nothing
+        // to explain why. Image downloads have been capped from the beginning;
+        // JSON bodies were not capped at all.
+        #expect(DataResolver.maximumResponseBytes >= 4 * 1024 * 1024)
+        #expect(DataResolver.maximumResponseBytes <= ImageStore.maximumDownloadBytes)
+    }
+
 }
 
 /// How a resolved value becomes the string an element draws.
@@ -149,4 +189,5 @@ struct InferenceTests {
     func arcs() {
         #expect(Format.inferred(for: .number(0.4), keyPath: "anything", kind: .arc).kind == .percent)
     }
+
 }

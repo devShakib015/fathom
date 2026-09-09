@@ -223,16 +223,34 @@ extension DataValue {
     /// Parses a response body. Uses `JSONSerialization` with
     /// `.mutableContainers` off and then rebuilds ordered objects from the
     /// raw bytes, so the tree the user browses is in the endpoint's order.
+    /// How deep a response is followed.
+    ///
+    /// `convert` recurses once per level, and the level count comes from
+    /// whatever an endpoint returns. JSONSerialization refuses about a thousand
+    /// levels and accepts five hundred — which was read, wrongly, as meaning
+    /// the recursion could not be driven deep enough to matter. It can: five
+    /// hundred frames of this function crashed the test process outright.
+    ///
+    /// Thirty-two is far past any real body. Weather and finance endpoints nest
+    /// five to eight; a widget binding through thirty-two levels is not a case
+    /// that exists. Past the limit the branch becomes null, which reads as a
+    /// missing value rather than taking the process with it.
+    static let maximumDepth = 32
+
     static func parse(_ data: Data) throws -> DataValue {
         let any = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
         let order = KeyOrder(data: data)
-        return convert(any, order: order, path: "")
+        return convert(any, order: order, path: "", depth: 0)
     }
 
-    private static func convert(_ any: Any, order: KeyOrder, path: String) -> DataValue {
+    private static func convert(_ any: Any, order: KeyOrder, path: String,
+                                depth: Int) -> DataValue {
+        guard depth < maximumDepth else { return .null }
         switch any {
         case let v as [Any]:
-            return .array(v.enumerated().map { convert($1, order: order, path: "\(path)[\($0)]") })
+            return .array(v.enumerated().map {
+                convert($1, order: order, path: "\(path)[\($0)]", depth: depth + 1)
+            })
         case let v as [String: Any]:
             let keys = order.keys(at: path) ?? v.keys.sorted()
             let seen = Set(keys)
@@ -240,7 +258,8 @@ extension DataValue {
             return .object((keys + extras).compactMap { key in
                 guard let child = v[key] else { return nil }
                 let childPath = path.isEmpty ? key : "\(path).\(key)"
-                return (key: key, value: convert(child, order: order, path: childPath))
+                return (key: key, value: convert(child, order: order, path: childPath,
+                                                 depth: depth + 1))
             })
         case let v as NSNumber:
             // NSNumber does not distinguish 1 from true, but the underlying

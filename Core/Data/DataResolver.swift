@@ -279,21 +279,60 @@ enum DataResolver {
         config.httpCookieStorage = nil
         config.urlCache = nil
 
+        // Buffered, with the limit enforced where it can be.
+        //
+        // The obvious way to bound memory is to stream with `bytes(for:)` and
+        // abandon the download at the limit. Measured on a 0.73 MB body:
+        // `data(for:)` took 0.013 s and the byte loop took 6.670 s — five
+        // hundred times slower, because `AsyncBytes` yields one byte at a time.
+        // A person with a one megabyte endpoint would have paid seven seconds
+        // of CPU per refresh for a protection against a response they were
+        // never going to receive.
+        //
+        // So: refuse early on a declared length, which most servers send and
+        // which costs nothing; and refuse after the fact otherwise. The second
+        // check does not save the memory of the download, but it does prevent
+        // parsing it — and parsing is where a large body becomes a much larger
+        // object graph — and prevents caching the result.
         let (data, response) = try await URLSession(configuration: config).data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw FetchError.status(http.statusCode)
+        if let http = response as? HTTPURLResponse {
+            guard (200..<300).contains(http.statusCode) else {
+                throw FetchError.status(http.statusCode)
+            }
+            if http.expectedContentLength > Int64(maximumResponseBytes) {
+                throw FetchError.tooLarge(maximumResponseBytes / 1024 / 1024)
+            }
+        }
+        guard data.count <= maximumResponseBytes else {
+            throw FetchError.tooLarge(maximumResponseBytes / 1024 / 1024)
         }
         return try DataValue.parse(data)
     }
 
     enum FetchError: LocalizedError {
         case status(Int)
+        case tooLarge(Int)
         var errorDescription: String? {
             switch self {
             case .status(let code): "The endpoint returned \(code)."
+            case .tooLarge(let mb): "The endpoint sent more than \(mb) MB. A widget reads a summary, not a database."
             }
         }
     }
+
+    /// The most a response may be.
+    ///
+    /// There was no limit at all, while image downloads have had one from the
+    /// beginning and for a reason spelled out in `ImageStore`: a widget
+    /// extension has a hard memory ceiling, and exceeding it gets the extension
+    /// killed and the widget replaced by the system's blank placeholder with
+    /// nothing to explain why. A JSON body is no less capable of being enormous
+    /// than a photograph is.
+    ///
+    /// Eight megabytes is far past any endpoint a person would put on a widget
+    /// — the weather response this project has used throughout is four
+    /// kilobytes — and far short of anything that threatens the budget.
+    static let maximumResponseBytes = 8 * 1024 * 1024
 }
 
 /// Last known good response per source, in the shared container so the widget
