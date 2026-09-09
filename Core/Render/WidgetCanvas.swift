@@ -222,11 +222,25 @@ struct ElementView: View {
         let corner = RoundedRectangle(cornerRadius: style.cornerRadius * scale, style: .continuous)
 
         if let bytes = data.images[url], let loaded = NSImage(data: bytes) {
-            Image(nsImage: loaded)
-                .resizable()
-                .aspectRatio(contentMode: style.contentMode == .fill ? .fill : .fit)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipShape(corner)
+            // The two modes need the clip at different points, which is not a
+            // detail that can be papered over: `fill` overflows the frame and
+            // must be clipped to it, while `fit` letterboxes *inside* the frame,
+            // so clipping the frame rounds empty space and leaves the picture
+            // itself square. Set a corner radius in fit mode with one shared
+            // order and nothing visibly happens.
+            if style.contentMode == .fill {
+                Image(nsImage: loaded)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(corner)
+            } else {
+                Image(nsImage: loaded)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .clipShape(corner)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         } else {
             // Not a blank box: an image that has not arrived should say so,
             // because "no picture" and "wrong URL" look identical otherwise.

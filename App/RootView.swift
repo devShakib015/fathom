@@ -77,20 +77,24 @@ struct RootView: View {
 
         return VStack(spacing: 0) {
             List(selection: $library.selection) {
-                Section("Widgets") {
-                    ForEach(library.documents) { doc in
-                        DocumentRow(doc: doc, slot: library.slot(holding: doc))
-                            .tag(doc.id)
-                            .contextMenu {
-                                Button("Duplicate") { library.duplicate(doc) }
-                                Button("Share…") { Sharing.export(doc) }
-                                Button("Show on desktop") { library.makeActive(doc) }
-                                if library.slot(holding: doc) != nil {
-                                    Button("Take off the desktop") { library.remove(doc) }
-                                }
-                                Divider()
-                                Button("Delete", role: .destructive) { library.delete(doc) }
+                // Grouped by what each design *is*, because family decides
+                // where it can go. A flat list of ten made a menu bar strip and
+                // a large dashboard look like the same kind of thing.
+                ForEach(DocumentGroup.allCases) { group in
+                    let documents = library.documents.filter { group.contains($0.family) }
+                    if !documents.isEmpty {
+                        Section {
+                            ForEach(documents) { doc in
+                                DocumentRow(doc: doc, placement: placement(of: doc))
+                                    .tag(doc.id)
+                                    .contextMenu { menu(for: doc) }
                             }
+                        } header: {
+                            Text(group.title)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Palette.textDim)
+                                .textCase(.uppercase)
+                        }
                     }
                 }
             }
@@ -102,6 +106,45 @@ struct RootView: View {
             newButton
             containerFooter
         }
+    }
+
+    @ViewBuilder private func menu(for doc: WidgetDoc) -> some View {
+        Button("Duplicate") { library.duplicate(doc) }
+        Button("Share…") { Sharing.export(doc) }
+        Button("Show on desktop") { library.makeActive(doc) }
+        if library.slot(holding: doc) != nil {
+            Button("Take off the desktop") { library.remove(doc) }
+        }
+        Divider()
+        Button("Delete", role: .destructive) { library.delete(doc) }
+    }
+
+    /// Where this design is live right now, across every surface.
+    ///
+    /// The sidebar used to answer "what is it called and what size is it",
+    /// which the icon and the section header already say. The question a
+    /// library of ten designs actually raises is which of them are *doing*
+    /// something, and until now nothing on screen answered it.
+    private func placement(of doc: WidgetDoc) -> LivePlacement? {
+        if let slot = library.slot(holding: doc) {
+            return LivePlacement(symbol: "display",
+                             label: slot.index == 1 ? nil : "\(slot.index)",
+                             help: "On the desktop in \(slot.displayName)")
+        }
+        if overlays.overlays.contains(where: { $0.documentID == doc.id && $0.isEnabled }) {
+            return LivePlacement(symbol: "rectangle.on.rectangle", label: nil, help: "On screen as an overlay")
+        }
+        if menuBar.items.contains(where: { $0.documentID == doc.id && $0.isEnabled }) {
+            return LivePlacement(symbol: "menubar.rectangle", label: nil, help: "In the menu bar")
+        }
+        if island.island?.documentID == doc.id, island.island?.isEnabled == true {
+            return LivePlacement(symbol: "capsule.fill", label: nil, help: "Under the notch")
+        }
+        if let summonConfig = summon.summon, summonConfig.documentID == doc.id, summonConfig.isEnabled {
+            return LivePlacement(symbol: "command", label: nil,
+                             help: "Summoned with \(summonConfig.hotKey.displayName)")
+        }
+        return nil
     }
 
     /// The catalog is a destination, not a menu item — it is the on-ramp the
@@ -194,29 +237,40 @@ struct RootView: View {
     /// Whether the shared store is genuinely usable, not merely resolvable.
     /// If this ever says otherwise, every widget on the machine is rendering
     /// fallbacks and nothing else on the system will mention it.
-    private var containerFooter: some View {
+    /// Storage diagnosis, shown only when there is something to diagnose.
+    ///
+    /// This existed because trap 5 was invisible without it — an extension that
+    /// resolves the shared store and is then denied it looks exactly like an
+    /// extension that is working. That reasoning holds only for the failure
+    /// case. When the store is fine, a line of developer output pinned to the
+    /// bottom of the sidebar is telling the user something they cannot act on
+    /// and did not ask, in a UI they look at every day.
+    @ViewBuilder private var containerFooter: some View {
         let storage = StoreDiagnosis.current()
-        return VStack(alignment: .leading, spacing: 4) {
-            Divider().overlay(Palette.hairline)
-            HStack(spacing: 6) {
-                Image(systemName: storage.usable ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                    .foregroundStyle(storage.usable ? Palette.accent : .orange)
-                Text(storage.summary)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Palette.textDim)
+        if !storage.usable {
+            VStack(alignment: .leading, spacing: 4) {
+                Divider().overlay(Palette.hairline)
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(storage.summary)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Palette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(storage.containerPath)
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(Palette.textDim.opacity(0.65))
                     .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
             }
-            Text(storage.containerPath)
-                .font(.system(size: 9, design: .monospaced))
-                .foregroundStyle(Palette.textDim.opacity(0.65))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .textSelection(.enabled)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 10)
+            .padding(.top, 4)
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 10)
-        .padding(.top, 4)
     }
+
 
     // MARK: - Detail
 
@@ -303,37 +357,89 @@ struct RootView: View {
     }
 }
 
+/// What holds a design right now, and the badge that says so.
+/// Named for what it reports, and to stay clear of the editor's own `Placement`.
+struct LivePlacement {
+    let symbol: String
+    /// Only when there is more than one of something — the slot number.
+    let label: String?
+    let help: String
+}
+
+/// The families, grouped the way a person thinks about them.
+enum DocumentGroup: String, CaseIterable, Identifiable {
+    case widgets, menuBar, island
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .widgets: "Widgets"
+        case .menuBar: "Menu bar"
+        case .island: "Island"
+        }
+    }
+
+    func contains(_ family: WidgetDoc.Family) -> Bool {
+        switch self {
+        case .widgets: family.widgetFamily != nil
+        case .menuBar: family == .menuBar
+        case .island: family == .island
+        }
+    }
+}
+
 private struct DocumentRow: View {
     let doc: WidgetDoc
-    let slot: WidgetSlot?
+    let placement: LivePlacement?
 
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: familySymbol)
-                .foregroundStyle(Palette.textDim)
+                .font(.system(size: 11))
+                .foregroundStyle(placement == nil ? Palette.textDim : Palette.accent)
                 .frame(width: 16)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(doc.name)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-                Text(doc.family.displayName)
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.textDim)
-            }
-            Spacer(minLength: 4)
-            if let slot {
-                // The slot number, not just a dot: with several widgets of one
-                // size on the desktop, which is which is the only useful thing
-                // this indicator can say.
-                Text(slot.index == 1 ? "●" : "\(slot.index)")
-                    .font(.system(size: slot.index == 1 ? 8 : 9, weight: .bold, design: .rounded))
-                    .foregroundStyle(Palette.accent)
-                    .frame(width: 12, height: 12)
-                    .background(slot.index == 1 ? .clear : Palette.accent.opacity(0.16), in: Circle())
-                    .help("On the desktop in \(slot.displayName)")
+
+            // One line, at a contrast you can actually read. The size used to
+            // sit underneath every name in grey, doubling the height of every
+            // row to repeat what the icon and the section header both said.
+            Text(doc.name)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Palette.text)
+                .lineLimit(1)
+
+            Spacer(minLength: 6)
+
+            if let placement {
+                HStack(spacing: 2) {
+                    Image(systemName: placement.symbol).font(.system(size: 9))
+                    if let label = placement.label {
+                        Text(label).font(.system(size: 9, weight: .bold, design: .rounded))
+                    }
+                }
+                .foregroundStyle(Palette.accent)
+                .help(placement.help)
+            } else if doc.family.widgetFamily != nil {
+                // Size only where it distinguishes anything: inside Widgets.
+                // Abbreviated, because the full word costs a third of the row
+                // to say what the icon beside the name already shows.
+                Text(sizeLabel)
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(Palette.textDim.opacity(0.8))
+                    .help(doc.family.displayName)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 1)
+    }
+
+    private var sizeLabel: String {
+        switch doc.family {
+        case .small: "S"
+        case .medium: "M"
+        case .large: "L"
+        case .extraLarge: "XL"
+        default: ""
+        }
     }
 
     private var familySymbol: String {
@@ -347,3 +453,4 @@ private struct DocumentRow: View {
         }
     }
 }
+
