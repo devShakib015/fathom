@@ -83,9 +83,18 @@ final class WallpaperController {
     /// which it will happily keep doing. Checked *before* anything is changed,
     /// because "I can undo this" is only worth saying in advance.
     var canRestoreCurrent: Bool {
+        // A good original already in hand settles it.
+        if hasOriginal { return true }
+
         guard let screen = targetScreen(),
               let current = NSWorkspace.shared.desktopImageURL(for: screen) else { return false }
-        if current.path.hasPrefix(SharedStore.root.path) { return true }   // already ours
+
+        // On screen is one of ours and no original is held — which happens when
+        // the original's file had already been deleted, so it was never
+        // recorded. There is nothing to go back to, and saying otherwise is the
+        // same false promise this whole check exists to stop.
+        if current.path.hasPrefix(SharedStore.root.path) { return false }
+
         return FileManager.default.fileExists(atPath: current.path)
     }
 

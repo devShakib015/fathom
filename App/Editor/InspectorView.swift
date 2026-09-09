@@ -42,15 +42,7 @@ struct InspectorView: View {
                         Divider().overlay(Palette.hairline)
                         DocumentInspector(model: model)
                         Divider().overlay(Palette.hairline)
-                        OverlaysSection(doc: model.doc)
-                        Divider().overlay(Palette.hairline)
-                        MenuBarSection(doc: model.doc)
-                        Divider().overlay(Palette.hairline)
-                        IslandSection(doc: model.doc)
-                        Divider().overlay(Palette.hairline)
-                        SummonSection(doc: model.doc)
-                        Divider().overlay(Palette.hairline)
-                        WallpaperSection(doc: model.doc)
+                        SurfacesSection(doc: model.doc)
                     case .data:
                         SourcesInspector(model: model) { elementID, sourceID, keyPath, value in
                             model.bind(element: elementID, to: keyPath, value: value, source: sourceID)
