@@ -93,7 +93,8 @@ struct SourcesInspector: View {
         let service = LocationService.shared
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Image(systemName: service.isAuthorised ? "location.fill" : "location.slash")
+                Image(systemName: service.isAuthorised ? "location.fill"
+                        : service.wasGrantedToAnEarlierBuild ? "location" : "location.slash")
                     .font(.system(size: 10))
                     .foregroundStyle(service.isAuthorised ? Palette.accent : Palette.textDim)
                 Text(service.summary)
@@ -102,9 +103,11 @@ struct SourcesInspector: View {
                     .lineLimit(1)
                 Spacer()
                 if !service.isAuthorised {
-                    Button("Use my location") { service.request() }
-                        .font(.system(size: 10))
-                        .buttonStyle(.link)
+                    Button(service.wasGrantedToAnEarlierBuild ? "Grant again" : "Use my location") {
+                        service.request()
+                    }
+                    .font(.system(size: 10))
+                    .buttonStyle(.link)
                 }
             }
 

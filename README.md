@@ -98,6 +98,13 @@ Fathom is free, so macOS will refuse to open it on first launch.
 
 You only do this once.
 
+**Updates ask for permissions again.** Fathom is ad-hoc signed, and macOS keys
+privacy grants to an app's signature — which changes with every build. So a new
+version starts over at "not asked" for location, calendar and reminders. Your
+widgets and designs are untouched; only the permissions need granting again.
+The only way around it is a paid Apple certificate, and Fathom is free.
+`SPEC.md` §6 trap 9 has the measurement.
+
 ## Licence
 
 MIT. Every feature, free, forever.

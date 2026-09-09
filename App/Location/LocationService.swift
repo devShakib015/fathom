@@ -23,6 +23,14 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     private(set) var isResolving = false
 
     @ObservationIgnored private let manager = CLLocationManager()
+    /// Held, not made on the spot.
+    ///
+    /// `try? await CLGeocoder().reverseGeocodeLocation(fix)` reads fine and
+    /// fails silently: the geocoder is a temporary, and nothing keeps it alive
+    /// across the suspension point, so the request can be cancelled before it
+    /// answers. Measured — the first real grant on this Mac wrote a place with
+    /// correct coordinates and no city at all.
+    @ObservationIgnored private let geocoder = CLGeocoder()
     @ObservationIgnored private var timer: Task<Void, Never>?
 
     private override init() {
@@ -36,10 +44,27 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         status == .authorizedAlways || status == .authorized
     }
 
+    /// Whether a grant this Mac made to an *earlier build* has been lost.
+    ///
+    /// Fathom ships ad-hoc signed, and an ad-hoc signature is a fresh identity
+    /// on every build. macOS keys privacy grants to that identity, so every
+    /// update starts over at "not determined" — while the location the previous
+    /// build resolved is still sitting in the shared store, still perfectly
+    /// accurate. Saying "Not asked yet" over the top of a stored place is
+    /// technically true and completely baffling. See SPEC.md §6 trap 9.
+    var wasGrantedToAnEarlierBuild: Bool {
+        status == .notDetermined && place != nil
+    }
+
     /// Human-readable state, for the one row of UI this deserves.
     var summary: String {
         switch status {
-        case .notDetermined: "Not asked yet"
+        case .notDetermined:
+            if let place {
+                "\(place.label), from a previous version — grant again to update it"
+            } else {
+                "Not asked yet"
+            }
         case .restricted: "Blocked by this Mac's settings"
         case .denied: "Denied — System Settings ▸ Privacy & Security ▸ Location Services"
         default:
@@ -127,10 +152,15 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
                           countryCode: nil, timeZone: TimeZone.current.identifier,
                           resolvedAt: Date(), isAuthorised: true)
 
-        // The coordinate is the part that matters and it is already in hand, so
-        // the name is a bonus: if reverse geocoding fails the place is still
-        // completely usable and `label` falls back to the coordinates.
-        if let mark = try? await CLGeocoder().reverseGeocodeLocation(fix).first {
+        // Written before the name is looked up, so a geocode that fails or
+        // never returns cannot cost the user the fix they just granted. The
+        // coordinate is the part every weather endpoint actually needs.
+        PlaceStore.write(place)
+        self.place = place
+
+        // The name is a bonus: if this fails the place stays completely usable
+        // and `label` falls back to the coordinates.
+        if let mark = try? await geocoder.reverseGeocodeLocation(fix).first {
             place.city = mark.locality ?? mark.subAdministrativeArea
             place.region = mark.administrativeArea
             place.country = mark.country

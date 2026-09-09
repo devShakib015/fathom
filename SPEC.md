@@ -5,10 +5,10 @@ mount it on the desktop. Plus a library of ready-made ones to start from.
 
 This document is written to be read cold. If you are an agent picking this up
 with no other context, everything you need to start is here, including the
-measurement the whole product rests on and the eight traps that will otherwise
-each cost you an afternoon. Trap 8 is about the shipping step and was found
-after everything else had already been verified — read §6 before you package
-anything.
+measurement the whole product rests on and the nine traps that will otherwise
+each cost you an afternoon. Traps 8 and 9 are about the shipping step and were
+found after everything else had already been verified — read §6 before you
+package anything, and before concluding that a permission request is broken.
 
 ---
 
@@ -191,7 +191,7 @@ App Group, however much it looks like the right answer — see trap 5.
 
 ---
 
-## 6. Eight traps, each measured the hard way
+## 6. Nine traps, each measured the hard way
 
 These came out of building the probe. Every one produced a green build and a
 silently broken result.
@@ -357,6 +357,37 @@ The general lesson is the one this section keeps repeating in different
 costumes: **a successful command is not evidence.** `codesign` exited zero and
 printed "replacing existing signature" while removing the thing the whole
 storage architecture depends on.
+
+### Trap 9 — every ad-hoc build is a new app, so privacy grants do not survive
+
+Measured 9 Sep 2026, immediately after trap 8, and it is the price of the fix.
+
+macOS keys privacy grants — location, calendar, reminders — to the app's code
+signing identity. An ad-hoc signature is derived from the binary's own hash, so
+**every build is a different identity**. Measured directly: granted location,
+confirmed the coordinate was written, rebuilt and re-signed, relaunched. The app
+reported `notDetermined` while its own stored place still said authorised, and
+clicking the button raised the system prompt a second time. A granted app does
+not re-prompt.
+
+This is not a bug and there is nothing to fix in Fathom. It is what shipping
+unsigned costs, and the only escape is a Developer ID certificate — Apple's
+$99/year programme, which §2 rules out. Checked: this machine has Apple
+Development certificates only, which cannot be used for distribution.
+
+Two consequences worth stating plainly rather than discovering later:
+
+* **Every Fathom update makes users re-grant** anything they had granted.
+  Location, calendar and reminders all go back to "not asked". Say so in the
+  release notes; do not let it look like data loss.
+* **Development re-prompts on every rebuild.** Budget for it when testing
+  anything permission-shaped, and do not read a `notDetermined` after a rebuild
+  as evidence that the request code is broken.
+
+What Fathom does about it is refuse to be baffling. The resolved place stays in
+the shared store and stays accurate, so the app distinguishes "never asked" from
+"granted to a previous version" and says the latter out loud, offering *Grant
+again* rather than pretending nothing ever happened.
 
 ---
 
