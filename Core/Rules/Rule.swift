@@ -26,6 +26,14 @@ struct Rule: Codable, Identifiable, Hashable {
     /// becomes one you turn off.
     var cooldown: TimeInterval
 
+    /// Loaded rules, with any hand-rolled shortcut URLs turned into real
+    /// shortcut actions.
+    var migrated: Rule {
+        var copy = self
+        copy.actions = actions.map(\.migrated)
+        return copy
+    }
+
     static let minimumInterval: TimeInterval = 5
     static let defaultInterval: TimeInterval = 60
     static let defaultCooldown: TimeInterval = 600
@@ -103,12 +111,47 @@ struct RuleAction: Codable, Hashable, Identifiable {
     /// The overlay to show or hide.
     var overlayID: UUID?
 
+    /// Rules written before `runShortcut` existed did it by hand, with a
+    /// `shortcuts://run-shortcut?name=…` URL — the placeholder in the editor
+    /// said so. Restricting links to http and https would silently stop those
+    /// working, so they become the real thing instead.
+    var migrated: RuleAction {
+        let prefix = "shortcuts://run-shortcut?name="
+        guard kind == .openURL, primary.hasPrefix(prefix) else { return self }
+        let encoded = String(primary.dropFirst(prefix.count))
+        var copy = self
+        copy.kind = .runShortcut
+        copy.primary = encoded.removingPercentEncoding ?? encoded
+        return copy
+    }
+
+    /// The click action this rule action is, when it is one of the shared
+    /// kinds. Rendered through the template first, so a rule can open a link
+    /// carrying the value that triggered it.
+    func sharedAction(renderedWith tree: DataValue?) -> Action? {
+        let value = TextTemplate.render(primary, tree: tree)
+            .trimmingCharacters(in: .whitespaces)
+        switch kind {
+        case .openURL: return Action(kind: .openURL, value: value)
+        case .openApp: return Action(kind: .openApp, value: value)
+        case .revealPath: return Action(kind: .revealPath, value: value)
+        case .runShortcut: return Action(kind: .runShortcut, value: value)
+        case .notify, .showOverlay, .hideOverlay, .playSound: return nil
+        }
+    }
+
     enum Kind: String, Codable, CaseIterable, Hashable {
         case notify
         case showOverlay
         case hideOverlay
         case openURL
         case playSound
+        // Parity with what a click can do. Two vocabularies for "what happens"
+        // is a fork that only widens, and there was already a gap: a rule could
+        // open a link but not an app, while a click could do both.
+        case openApp
+        case revealPath
+        case runShortcut
 
         var displayName: String {
             switch self {
@@ -117,6 +160,9 @@ struct RuleAction: Codable, Hashable, Identifiable {
             case .hideOverlay: "Take an overlay off screen"
             case .openURL: "Open a link"
             case .playSound: "Play a sound"
+            case .openApp: "Open an app"
+            case .revealPath: "Show in Finder"
+            case .runShortcut: "Run a shortcut"
             }
         }
 
@@ -127,6 +173,9 @@ struct RuleAction: Codable, Hashable, Identifiable {
             case .hideOverlay: "rectangle.slash"
             case .openURL: "link"
             case .playSound: "speaker.wave.2"
+            case .openApp: "app"
+            case .revealPath: "folder"
+            case .runShortcut: "square.stack.3d.up"
             }
         }
     }
@@ -152,7 +201,7 @@ struct RuleStore {
 
     func all() -> [Rule] {
         guard let url, let data = try? Data(contentsOf: url) else { return [] }
-        return (try? JSONDecoder().decode([Rule].self, from: data)) ?? []
+        return ((try? JSONDecoder().decode([Rule].self, from: data)) ?? []).map(\.migrated)
     }
 
     func save(_ rules: [Rule]) {

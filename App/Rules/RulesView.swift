@@ -340,10 +340,13 @@ private struct ActionEditor: View {
                     .labelsHidden()
                 }
 
-            case .openURL:
-                TextField("https://… or shortcuts://run-shortcut?name=…", text: Binding(
+            case .openURL, .openApp, .revealPath, .runShortcut:
+                TextField(placeholder(for: action.kind), text: Binding(
                     get: { action.primary }, set: { v in edit { $0.primary = v } }))
                     .textFieldStyle(.roundedBorder).font(.system(size: 11, design: .monospaced))
+                Text("Braces work here too, so a link can carry the value that fired the rule. Links open in your browser; only http and https are allowed.")
+                    .font(.system(size: 9)).foregroundStyle(Palette.textDim.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
 
             case .playSound:
                 Picker("", selection: Binding(get: { action.primary.isEmpty ? "Submarine" : action.primary },
@@ -352,6 +355,16 @@ private struct ActionEditor: View {
                 }
                 .labelsHidden()
             }
+        }
+    }
+
+    private func placeholder(for kind: RuleAction.Kind) -> String {
+        switch kind {
+        case .openURL: "https://example.com/{value}"
+        case .openApp: "Calendar"
+        case .revealPath: "~/Documents"
+        case .runShortcut: "Start my day"
+        default: ""
         }
     }
 }

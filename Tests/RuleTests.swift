@@ -82,4 +82,50 @@ struct RuleTests {
                                        url: "https://api.example.com/x.json"))
         #expect(rule.declaredHosts == ["api.example.com"])
     }
+
+    @Test("a rule can do everything a click can")
+    func vocabularyParity() {
+        // Two vocabularies for "what happens" is a fork that only widens, and
+        // there was already a gap: a rule could open a link but not an app.
+        let clickKinds = Set(Action.Kind.allCases.map(\.rawValue))
+            .subtracting(["none", "refresh"])
+        let ruleKinds = Set(RuleAction.Kind.allCases.map(\.rawValue))
+        #expect(clickKinds.isSubset(of: ruleKinds))
+    }
+
+    @Test("a hand-rolled shortcut URL becomes a real shortcut action")
+    func migratesShortcutURLs() {
+        // The editor used to tell people to write shortcuts://run-shortcut?name=…
+        // in the link field. Restricting links to http and https would silently
+        // stop those rules working.
+        let old = RuleAction(id: UUID(), kind: .openURL,
+                             primary: "shortcuts://run-shortcut?name=Start%20my%20day",
+                             secondary: "", overlayID: nil)
+        let new = old.migrated
+        #expect(new.kind == .runShortcut)
+        #expect(new.primary == "Start my day")
+    }
+
+    @Test("an ordinary link is left alone by the migration")
+    func migrationIsNarrow() {
+        let link = RuleAction(id: UUID(), kind: .openURL,
+                              primary: "https://example.com", secondary: "", overlayID: nil)
+        #expect(link.migrated.kind == .openURL)
+        #expect(link.migrated.primary == "https://example.com")
+    }
+
+    @Test("only the shared kinds map to a click action")
+    func sharedMapping() {
+        for kind in RuleAction.Kind.allCases {
+            let action = RuleAction(id: UUID(), kind: kind, primary: "x",
+                                    secondary: "", overlayID: nil)
+            let shared = action.sharedAction(renderedWith: nil)
+            switch kind {
+            case .notify, .showOverlay, .hideOverlay, .playSound:
+                #expect(shared == nil)
+            default:
+                #expect(shared?.value == "x")
+            }
+        }
+    }
 }

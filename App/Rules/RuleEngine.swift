@@ -148,12 +148,16 @@ final class RuleEngine {
             overlay.isEnabled = action.kind == .showOverlay
             overlays?.update(overlay)
 
-        case .openURL:
-            // Rendered first, so a link can carry the value that triggered it.
-            let rendered = TextTemplate.render(action.primary, tree: tree)
-            guard let url = URL(string: rendered.trimmingCharacters(in: .whitespaces)),
-                  url.scheme != nil else { return }
-            NSWorkspace.shared.open(url)
+        case .openURL, .openApp, .revealPath, .runShortcut:
+            // One runner for clicks and rules alike.
+            //
+            // This branch used to open any URL with a scheme, and the URL is
+            // rendered from a template whose values come from whatever endpoint
+            // the rule watches — so a remote response could choose the scheme.
+            // ActionRunner allows http and https only, and now this obeys the
+            // same rule because it is the same code.
+            guard let shared = action.sharedAction(renderedWith: tree) else { return }
+            ActionRunner.run(shared)
 
         case .playSound:
             NSSound(named: action.primary.isEmpty ? "Submarine" : action.primary)?.play()
