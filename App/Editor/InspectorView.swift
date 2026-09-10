@@ -309,23 +309,101 @@ private struct ElementInspector: View {
     }
 }
 
-/// An SF Symbol name field with a live check, because a mistyped symbol name
-/// renders as a question mark on the desktop and nowhere says why.
+/// Picking an icon by looking at icons.
+///
+/// This was a bare text field: you typed an exact SF Symbol name from memory
+/// and a tick told you afterwards whether you had guessed right. The field is
+/// still here, because someone who knows the name should be able to type it and
+/// because a symbol name can be bound to data — but it is no longer the only
+/// way in.
 private struct SymbolField: View {
     @Binding var name: String
+    @State private var browsing = false
 
     private var valid: Bool { NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             TextField("sun.max.fill", text: $name)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 11, design: .monospaced))
-            Image(systemName: valid ? name : "questionmark")
-                .foregroundStyle(valid ? Palette.accent : .orange)
-                .frame(width: 18)
-                .help(valid ? "Valid SF Symbol" : "No SF Symbol with that name")
+
+            Button { browsing = true } label: {
+                Image(systemName: valid ? name : "square.grid.2x2")
+                    .font(.system(size: 12))
+                    .foregroundStyle(valid ? Palette.accent : Palette.textDim)
+                    .frame(width: 26, height: 20)
+                    .background(Palette.hairline.opacity(0.6),
+                                in: RoundedRectangle(cornerRadius: 5))
+            }
+            .buttonStyle(.plain)
+            .help("Choose an icon")
+            .popover(isPresented: $browsing, arrowEdge: .bottom) {
+                SymbolPicker(chosen: $name) { browsing = false }
+            }
         }
+    }
+}
+
+/// A grid of icons, grouped and searchable.
+private struct SymbolPicker: View {
+    @Binding var chosen: String
+    var onPick: () -> Void
+
+    @State private var query = ""
+
+    private let columns = Array(repeating: GridItem(.fixed(30), spacing: 6), count: 8)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("Search icons — try weather, battery, arrow", text: $query)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 11))
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    let groups = SymbolCatalogue.search(query)
+                    if groups.isEmpty {
+                        Text("No icons match “\(query)”. You can still type an exact SF Symbol name.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Palette.textDim)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    ForEach(groups, id: \.name) { group in
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(group.name.uppercased())
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(Palette.textDim)
+                            LazyVGrid(columns: columns, spacing: 6) {
+                                ForEach(group.symbols, id: \.self) { symbol in
+                                    Button {
+                                        chosen = symbol
+                                        onPick()
+                                    } label: {
+                                        Image(systemName: symbol)
+                                            .font(.system(size: 14))
+                                            .frame(width: 30, height: 26)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 5)
+                                                    .fill(symbol == chosen
+                                                          ? Palette.accent.opacity(0.25)
+                                                          : Color.clear))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(symbol == chosen ? Palette.accent : Palette.text)
+                                    .help(symbol)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.bottom, 4)
+            }
+            .frame(height: 260)
+        }
+        .padding(12)
+        .frame(width: 300)
+        .background(Palette.background)
     }
 }
 

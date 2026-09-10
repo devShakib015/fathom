@@ -36,6 +36,10 @@ struct CanvasView: View {
             surface
         }
         .background(Palette.background)
+        // A drag that never ends — the view goes away mid-gesture, or the
+        // document is switched — would otherwise leave saving suspended and
+        // silently drop the edit.
+        .onDisappear { model.endGesture() }
     }
 
     /// One grid step per press, or one hundredth with the grid off — the two
@@ -50,18 +54,37 @@ struct CanvasView: View {
     // MARK: - Toolbar
 
     private var toolbar: some View {
-        HStack(spacing: 14) {
-            Text(model.doc.family.displayName)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Palette.textDim)
-                .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Palette.surface, in: Capsule())
-
-            Toggle(isOn: $model.snapEnabled) {
-                Label("Snap", systemImage: "grid")
+        // Tight, and no wider than the column it sits in. Adding the alignment
+        // controls pushed the whole window layout sideways and clipped the
+        // sidebar; the size label went because the inspector already says it.
+        HStack(spacing: 8) {
+            Toggle(isOn: $model.gridVisible) {
+                Label("Grid", systemImage: "grid")
             }
             .toggleStyle(.button)
             .controlSize(.small)
+            .help("Show the grid")
+
+            Toggle(isOn: $model.snapEnabled) {
+                Label("Snap", systemImage: "dot.squareshape.split.2x2")
+            }
+            .toggleStyle(.button)
+            .controlSize(.small)
+            .help("Pull elements onto the grid as you move them")
+
+            Divider().frame(height: 16)
+
+            // Lining things up by eye and arrow key was the only option, which
+            // is why nothing anybody made looked straight.
+            ForEach(ElementAlignment.allCases) { alignment in
+                Button { model.align(alignment) } label: {
+                    Image(systemName: alignment.symbol)
+                }
+                .disabled(model.selection.isEmpty
+                          || (alignment.needsThree && model.selection.count < 3))
+                .help(alignment.label)
+                .controlSize(.small)
+            }
 
             Spacer()
 
@@ -135,7 +158,7 @@ struct CanvasView: View {
             // selecting it. Only the chrome should ever receive a click.
             WidgetCanvas(doc: model.doc, data: model.data)
                 .allowsHitTesting(false)
-            if model.snapEnabled { grid }
+            if model.gridVisible { grid }
             chrome
         }
         .frame(width: canvasSize.width, height: canvasSize.height)
@@ -155,7 +178,19 @@ struct CanvasView: View {
             let vStep = size.height / Double(model.gridDivisions)
             var y = vStep
             while y < size.height { path.move(to: CGPoint(x: 0, y: y)); path.addLine(to: CGPoint(x: size.width, y: y)); y += vStep }
-            context.stroke(path, with: .color(.white.opacity(0.05)), lineWidth: 0.5)
+            // Every fourth line is drawn stronger, so the eye has quarters and
+            // a centre to aim at rather than an undifferentiated mesh.
+            var strong = Path()
+            let quarter = Double(model.gridDivisions) / 4
+            for i in 1..<model.gridDivisions where Double(i).truncatingRemainder(dividingBy: quarter) == 0 {
+                let px = step * Double(i), py = vStep * Double(i)
+                strong.move(to: CGPoint(x: px, y: 0)); strong.addLine(to: CGPoint(x: px, y: size.height))
+                strong.move(to: CGPoint(x: 0, y: py)); strong.addLine(to: CGPoint(x: size.width, y: py))
+            }
+            // Was 0.05 — invisible on a dark backdrop, which is the whole
+            // reason people said there was no grid.
+            context.stroke(path, with: .color(.white.opacity(0.10)), lineWidth: 0.5)
+            context.stroke(strong, with: .color(.white.opacity(0.22)), lineWidth: 0.5)
         }
         .allowsHitTesting(false)
     }

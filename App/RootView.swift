@@ -54,8 +54,13 @@ struct RootView: View {
         .task { await library.exportAllPreviews() }
         // An edit has to reach the overlays too, or the canvas and the screen
         // disagree until the next refresh.
-        .onChange(of: editor?.doc) { _, new in
-            if let new {
+        // Keyed on committed edits, not on every keystroke of `doc`.
+        //
+        // `doc` changes on every frame of a drag; waking five surface
+        // controllers that often made the overlays and the island flicker while
+        // an element was being moved.
+        .onChange(of: editor?.commits) { _, _ in
+            if let new = editor?.doc {
                 overlays.documentChanged(new.id)
                 menuBar.documentChanged(new.id)
                 island.documentChanged(new.id)

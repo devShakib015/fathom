@@ -18,6 +18,11 @@ final class EditorModel {
     /// place things deliberately and coarse enough that edges line up on their
     /// own, which is most of what a grid is for.
     var snapEnabled = true
+    /// Seeing the grid and snapping to it are different questions, and tying
+    /// them together meant the only way to look at the guides was to accept
+    /// being pulled onto them. On by default: a grid you have to switch on is
+    /// one most people never learn exists.
+    var gridVisible = true
     var gridDivisions = 24
 
     private var undoStack: [WidgetDoc] = []
@@ -132,7 +137,12 @@ final class EditorModel {
     }
 
     /// Ends a continuous gesture, so the next change starts a new undo step.
-    func endGesture() { gestureInProgress = false }
+    /// Ends a drag and writes the result once.
+    func endGesture() {
+        guard gestureInProgress else { return }
+        gestureInProgress = false
+        save()
+    }
 
     var undoDepth: Int { undoStack.count }
 
@@ -308,6 +318,17 @@ final class EditorModel {
         return (value / step).rounded() * step
     }
 
+    /// Lines the selection up. The geometry lives in `Alignment` so it can be
+    /// tested without a view; this only supplies the selection and the undo
+    /// entry.
+    func align(_ alignment: ElementAlignment) {
+        let chosen = selectedElements
+        guard let moves = ElementAlignment.positions(for: alignment, in: chosen) else { return }
+        updateSelected(alignment.label) { element in
+            if let frame = moves[element.id] { element.frame = frame.normalised }
+        }
+    }
+
     func nudgeSelected(dx: Double, dy: Double) {
         updateSelected("Nudge") { element in
             element.frame.x += dx
@@ -342,8 +363,25 @@ final class EditorModel {
     /// Autosave on every change. The document is small, the write is atomic,
     /// and a design tool that can lose work is not one anybody should trust
     /// with an afternoon.
+    /// Bumped once per committed change, never during a drag.
+    ///
+    /// What the rest of the app watches instead of `doc`. A drag mutates `doc`
+    /// on every frame so the canvas can follow the pointer, and everything
+    /// downstream of a *finished* edit — saving, the overlays, the menu bar,
+    /// the island — should happen once at the end rather than sixty times a
+    /// second.
+    private(set) var commits = 0
+
     private func save() {
+        // A drag delivers one mouse-move per frame, and each one used to run
+        // the whole document through `sanitised` — element normalisation,
+        // source migration, caption migration — encode it, and write it to disk
+        // atomically. Then five surface controllers woke up and re-resolved.
+        // Moving one element was doing sixty document writes a second, which is
+        // what made dragging feel like it was fighting back.
+        guard !gestureInProgress else { return }
         DocumentStore.shared.save(doc)
+        commits += 1
     }
 
     /// Push the current state to any placed widget now rather than at the next
