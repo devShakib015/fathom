@@ -17,7 +17,19 @@ final class EditorModel {
     /// Snap positions to a grid in unit space. 24 divisions is fine enough to
     /// place things deliberately and coarse enough that edges line up on their
     /// own, which is most of what a grid is for.
-    var snapEnabled = true
+    /// Off by default, now that the alignment guides exist.
+    ///
+    /// Grid snapping quantises every drag to one twenty-fourth of the widget —
+    /// about fourteen pixels on screen at two hundred percent zoom — so an
+    /// element can only ever sit on a lattice and moving it looks like it is
+    /// stepping rather than following the pointer. That was tolerable when it
+    /// was the only way to line anything up. The guides do that job now, and
+    /// they do it against things that actually matter — a neighbour's edge, the
+    /// middle of the widget — within four pixels rather than fourteen.
+    ///
+    /// Still here for anyone who wants a strict grid; it is simply no longer
+    /// imposed on everybody.
+    var snapEnabled = false
     /// Seeing the grid and snapping to it are different questions, and tying
     /// them together meant the only way to look at the guides was to accept
     /// being pulled onto them. On by default: a grid you have to switch on is
