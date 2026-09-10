@@ -80,6 +80,18 @@ private struct ElementInspector: View {
     /// Writes through to the model so that every keystroke is undoable and
     /// autosaved, rather than the view holding a private copy that has to be
     /// reconciled later.
+    /// A 0…1 frame value shown and edited as a percentage.
+    private func percentField(_ label: String,
+                              _ path: WritableKeyPath<Element, Double>,
+                              _ action: String,
+                              _ range: ClosedRange<Double>) -> some View {
+        let source = binding(path, action)
+        return NumberField(label: label,
+                           value: Binding(get: { source.wrappedValue * 100 },
+                                          set: { source.wrappedValue = $0 / 100 }),
+                           range: range, step: 1, format: "%.0f%%")
+    }
+
     private func binding<V>(_ keyPath: WritableKeyPath<Element, V>, _ name: String) -> Binding<V> {
         Binding(
             get: { model.doc.elements.first { $0.id == element.id }?[keyPath: keyPath] ?? element[keyPath: keyPath] },
@@ -96,11 +108,21 @@ private struct ElementInspector: View {
             }
             Divider().overlay(Palette.hairline)
 
+            // Percentages of the widget, not unit fractions.
+            //
+            // These read 0.08 and 0.5, which is the number the format stores
+            // and means nothing to anyone reading it. "8%" and "50%" are the
+            // same fact in a form somebody can act on — and "Left" and "Top"
+            // say which edge, where X and Y do not.
             InspectorSection(title: "Position") {
-                InspectorRow(label: "X") { NumberField(label: "X", value: binding(\.frame.x, "Move"), range: -0.5...1.5) }
-                InspectorRow(label: "Y") { NumberField(label: "Y", value: binding(\.frame.y, "Move"), range: -0.5...1.5) }
-                InspectorRow(label: "Width") { NumberField(label: "W", value: binding(\.frame.width, "Resize"), range: 0.01...2) }
-                InspectorRow(label: "Height") { NumberField(label: "H", value: binding(\.frame.height, "Resize"), range: 0.01...2) }
+                InspectorRow(label: "Left") { percentField("Left", \.frame.x, "Move", -50...150) }
+                InspectorRow(label: "Top") { percentField("Top", \.frame.y, "Move", -50...150) }
+                InspectorRow(label: "Width") { percentField("Width", \.frame.width, "Resize", 1...200) }
+                InspectorRow(label: "Height") { percentField("Height", \.frame.height, "Resize", 1...200) }
+                Text("Measured across the whole widget, so a design keeps its shape at any size.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Palette.textDim.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Divider().overlay(Palette.hairline)
 

@@ -17,6 +17,13 @@ struct CanvasView: View {
     /// goes through a drag gesture that does not grant it. The canvas takes
     /// focus explicitly whenever anything on it is touched.
     @FocusState private var focused: Bool
+    /// Shows the design with none of the editor around it.
+    ///
+    /// The canvas is a working surface — grid, handles, a selection outline,
+    /// magnified to two hundred percent — and there was no way to see what you
+    /// were actually making. Preview is the same renderer the desktop uses, at
+    /// the size the desktop uses, with all of that taken away.
+    @State private var previewing = false
 
     private var canvasSize: CGSize {
         let reference = model.doc.family.referenceSize
@@ -54,15 +61,38 @@ struct CanvasView: View {
     // MARK: - Toolbar
 
     private var toolbar: some View {
-        // Tight, and no wider than the column it sits in. Adding the alignment
-        // controls pushed the whole window layout sideways and clipped the
-        // sidebar; the size label went because the inspector already says it.
+        // Scrolls rather than compresses.
+        //
+        // Twice now, adding a control has made this row wider than its column:
+        // the first time it shoved the whole window sideways and clipped the
+        // sidebar, the second time SwiftUI squeezed the labels to one character
+        // per line. A row that can scroll cannot do either, whatever is added
+        // to it next or however narrow the window gets.
+        ScrollView(.horizontal, showsIndicators: false) {
+            toolbarContents
+        }
+        .frame(height: 30)
+    }
+
+    private var toolbarContents: some View {
         HStack(spacing: 8) {
+            Toggle(isOn: $previewing) {
+                Label("Preview", systemImage: "eye")
+            }
+            .toggleStyle(.button)
+            .controlSize(.small)
+            .help("See it the way it will look on the desktop")
+
+            // Icon-only, with tooltips. Spelled out, these three labels no
+            // longer fit the column and SwiftUI compressed them to one
+            // character per line — "G r i d" stacked vertically. Preview keeps
+            // its word because it is the one somebody needs to find.
             Toggle(isOn: $model.gridVisible) {
                 Label("Grid", systemImage: "grid")
             }
             .toggleStyle(.button)
             .controlSize(.small)
+            .labelStyle(.iconOnly)
             .help("Show the grid")
 
             Toggle(isOn: $model.snapEnabled) {
@@ -70,6 +100,7 @@ struct CanvasView: View {
             }
             .toggleStyle(.button)
             .controlSize(.small)
+            .labelStyle(.iconOnly)
             .help("Pull elements onto the grid as you move them")
 
             Divider().frame(height: 16)
@@ -138,14 +169,43 @@ struct CanvasView: View {
                     .onKeyPress(.downArrow) { nudge(0, 1) }
                     .onTapGesture { focused = true; model.deselect() }
 
-                widget
-                    .padding(60)
+                if previewing { preview } else { widget.padding(60) }
             }
             .frame(minWidth: canvasSize.width + 120, minHeight: canvasSize.height + 120)
         }
         .background(
             LinearGradient(colors: [Palette.surface.opacity(0.55), Palette.background],
                            startPoint: .top, endPoint: .bottom))
+    }
+
+    /// The design at its true size, twice — the size it will be on the
+    /// desktop, and doubled for looking at closely.
+    private var preview: some View {
+        let size = model.doc.family.referenceSize
+        return VStack(spacing: 26) {
+            Text("This is how it will look. Press Escape to go back.")
+                .font(.system(size: 11))
+                .foregroundStyle(Palette.textDim)
+
+            ForEach([1.0, 2.0], id: \.self) { scale in
+                VStack(spacing: 7) {
+                    ZStack {
+                        model.doc.background.swatch
+                        WidgetCanvas(doc: model.doc, data: model.data)
+                    }
+                    .frame(width: size.width * scale, height: size.height * scale)
+                    .clipShape(RoundedRectangle(
+                        cornerRadius: WidgetDoc.Family.cornerRadius * scale, style: .continuous))
+                    .shadow(color: .black.opacity(0.45), radius: 18 * scale, y: 8 * scale)
+
+                    Text(scale == 1 ? "Actual size" : "Twice actual size")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Palette.textDim.opacity(0.8))
+                }
+            }
+        }
+        .padding(50)
+        .onExitCommand { previewing = false }
     }
 
     private var widget: some View {
@@ -158,8 +218,8 @@ struct CanvasView: View {
             // selecting it. Only the chrome should ever receive a click.
             WidgetCanvas(doc: model.doc, data: model.data)
                 .allowsHitTesting(false)
-            if model.gridVisible { grid }
-            chrome
+            if model.gridVisible, !previewing { grid }
+            if !previewing { chrome }
         }
         .frame(width: canvasSize.width, height: canvasSize.height)
         .clipShape(RoundedRectangle(cornerRadius: WidgetDoc.Family.cornerRadius * zoom, style: .continuous))

@@ -102,18 +102,43 @@ struct Element: Codable, Identifiable, Hashable {
         /// together. No drawing of its own.
         case group
 
+        /// What the thing is called, in the words somebody would use before
+        /// they knew this app existed.
+        ///
+        /// The stored `rawValue` is untouched — renaming that would break every
+        /// document ever written. This is only what people read. "Arc",
+        /// "Sparkline" and "Repeater" are the names of implementations; "Ring",
+        /// "Graph" and "List" are the names of things.
         var displayName: String {
             switch self {
             case .text: "Text"
-            case .symbol: "Symbol"
-            case .shape: "Shape"
-            case .divider: "Divider"
-            case .arc: "Arc"
-            case .spark: "Sparkline"
-            case .image: "Image"
+            case .symbol: "Icon"
+            case .shape: "Box"
+            case .divider: "Line"
+            case .arc: "Ring"
+            case .spark: "Graph"
+            case .image: "Picture"
             case .bar: "Bar"
-            case .repeater: "Repeater"
+            case .repeater: "List"
             case .group: "Group"
+            }
+        }
+
+        /// One line saying what it is for, shown under the palette button and
+        /// as its tooltip. Someone who does not know what an arc is cannot be
+        /// expected to guess, and there was nothing anywhere that said.
+        var explanation: String {
+            switch self {
+            case .text: "Words, or a number from your data"
+            case .symbol: "One of Apple's built-in icons"
+            case .shape: "A rectangle or circle you can colour"
+            case .divider: "A thin line to separate things"
+            case .arc: "A circular gauge, like a battery ring"
+            case .spark: "A small line chart from a list of numbers"
+            case .image: "A picture from a web address"
+            case .bar: "A bar that fills up, like a progress bar"
+            case .repeater: "Repeats what is inside it, once per item"
+            case .group: "Holds things together so they move as one"
             }
         }
 

@@ -74,6 +74,11 @@ struct ElementPalette: View {
                 .foregroundStyle(Palette.textDim)
                 .tracking(0.8)
 
+            Text("Click one to drop it on the widget, then drag it where you want it.")
+                .font(.system(size: 10))
+                .foregroundStyle(Palette.textDim.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+
             LazyVGrid(columns: columns, spacing: 6) {
                 ForEach(Element.Kind.allCases, id: \.self) { kind in
                     Button { model.add(kind) } label: {
@@ -93,6 +98,10 @@ struct ElementPalette: View {
                             .stroke(Palette.hairline, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
+                    // Nothing anywhere said what an arc or a repeater was, and
+                    // somebody who does not already know cannot be expected to
+                    // guess from a nine-point label.
+                    .help("\(kind.displayName) — \(kind.explanation)")
                     .foregroundStyle(Palette.text)
                 }
             }
