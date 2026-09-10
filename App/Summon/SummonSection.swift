@@ -44,6 +44,7 @@ struct SummonSection: View {
                     Spacer()
                     Button { controller.toggle() } label: { Image(systemName: "eye") }
                         .buttonStyle(.borderless).foregroundStyle(Palette.textDim)
+                        .accessibilityLabel("Remove the hotkey")
                         .help("Show it now")
                     Button { controller.clear() } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.borderless).foregroundStyle(Palette.textDim)

@@ -351,6 +351,13 @@ struct RootView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 13)
+        // The window hides its real title bar, which is also what makes
+        // double-clicking it do nothing — macOS zooms a window when you
+        // double-click a title bar, and there is not one. This is that
+        // gesture, put back on the strip that replaced it.
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { NSApp.keyWindow?.zoom(nil) }
+        .accessibilityAddTraits(.isHeader)
     }
 
     private func slotLabel(_ editor: EditorModel) -> String {

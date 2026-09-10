@@ -78,6 +78,7 @@ private struct MenuBarItemRow: View {
                 Spacer()
                 Button { controller.delete(item.id) } label: { Image(systemName: "minus.circle") }
                     .buttonStyle(.borderless).foregroundStyle(Palette.textDim)
+                        .accessibilityLabel("Remove from the menu bar")
             }
 
             InspectorRow(label: "Width") {

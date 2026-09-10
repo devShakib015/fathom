@@ -74,7 +74,9 @@ struct WallpaperSection: View {
                         Image(systemName: "arrow.clockwise")
                     }
                     .buttonStyle(.borderless).foregroundStyle(Palette.textDim)
+                        .accessibilityLabel("Stop using this as the wallpaper")
                     .help("Redraw it now")
+                    .accessibilityLabel("Redraw the wallpaper now")
                     Button { controller.clear() } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.borderless).foregroundStyle(Palette.textDim)
                 }

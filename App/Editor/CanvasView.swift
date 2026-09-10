@@ -117,6 +117,10 @@ struct CanvasView: View {
                 .disabled(model.selection.isEmpty
                           || (alignment.needsThree && model.selection.count < 3))
                 .help(alignment.label)
+                // `help` is a tooltip; it is not what a screen reader reads.
+                // Without this VoiceOver announces the SF Symbol name —
+                // "align dot horizontal dot left dot fill".
+                .accessibilityLabel(alignment.label)
                 .controlSize(.small)
             }
 
@@ -125,9 +129,11 @@ struct CanvasView: View {
             Button { model.duplicateSelected() } label: { Image(systemName: "plus.square.on.square") }
                 .disabled(model.selection.isEmpty)
                 .help("Duplicate  ⌘D")
+                .accessibilityLabel("Duplicate")
             Button { model.deleteSelected() } label: { Image(systemName: "trash") }
                 .disabled(model.selection.isEmpty)
                 .help("Delete  ⌫")
+                .accessibilityLabel("Delete")
 
             Divider().frame(height: 16)
 
@@ -135,21 +141,28 @@ struct CanvasView: View {
                 .disabled(!model.canUndo)
                 .keyboardShortcut("z", modifiers: .command)
                 .help("Undo")
+                .accessibilityLabel("Undo")
             Button { model.redo() } label: { Image(systemName: "arrow.uturn.forward") }
                 .disabled(!model.canRedo)
                 .keyboardShortcut("z", modifiers: [.command, .shift])
                 .help("Redo")
+                .accessibilityLabel("Redo")
 
             Divider().frame(height: 16)
 
             Button { zoom = max(1, zoom - 0.5) } label: { Image(systemName: "minus.magnifyingglass") }
                 .disabled(zoom <= 1)
+                .help("Zoom out")
+                .accessibilityLabel("Zoom out")
             Text("\(Int(zoom * 100))%")
                 .font(.system(size: 11, design: .monospaced))
+                .accessibilityLabel("Zoom \(Int(zoom * 100)) percent")
                 .foregroundStyle(Palette.textDim)
                 .frame(width: 42)
             Button { zoom = min(4, zoom + 0.5) } label: { Image(systemName: "plus.magnifyingglass") }
                 .disabled(zoom >= 4)
+                .help("Zoom in")
+                .accessibilityLabel("Zoom in")
         }
         .buttonStyle(.borderless)
         .padding(.horizontal, 14)

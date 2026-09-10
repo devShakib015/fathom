@@ -310,6 +310,7 @@ private struct ActionEditor: View {
                 .labelsHidden()
                 Button { onRemove() } label: { Image(systemName: "minus.circle") }
                     .buttonStyle(.borderless).foregroundStyle(Palette.textDim)
+                        .accessibilityLabel("Remove this action")
             }
 
             switch action.kind {

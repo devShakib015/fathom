@@ -53,6 +53,7 @@ struct IslandSection: View {
                     Spacer()
                     Button { controller.clear() } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.borderless).foregroundStyle(Palette.textDim)
+                        .accessibilityLabel("Remove from the island")
                 }
 
                 InspectorRow(label: "Shows") {
