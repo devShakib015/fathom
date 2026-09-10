@@ -136,19 +136,45 @@ Ten drawing primitives, and a design is just an arrangement of them.
 
 | Element | Draws |
 |---|---|
-| **Text** | Words or a bound value |
-| **Symbol** | Any SF Symbol |
-| **Shape** | Rectangle, rounded rectangle, capsule or circle |
-| **Divider** | A rule |
-| **Arc** | A ring or a gauge, with a start angle and a sweep |
-| **Sparkline** | A line through a series of numbers |
-| **Image** | A picture from a URL |
-| **Bar** | A progress bar |
-| **Repeater** | Draws its children once per item in a list |
-| **Group** | Holds other elements so they move together |
+| **Text** | Words, or a number from your data |
+| **Icon** | One of Apple's built-in icons, chosen from a picker |
+| **Box** | A rectangle, rounded rectangle, capsule or circle |
+| **Line** | A thin rule to separate things |
+| **Ring** | A circular gauge, like a battery ring |
+| **Graph** | A small line chart from a list of numbers |
+| **Picture** | An image from a web address |
+| **Bar** | A bar that fills up, like a progress bar |
+| **List** | Repeats what is inside it, once per item |
+| **Group** | Holds things together so they move as one |
 
-Every element carries a **frame** (position and size, stored as a fraction of
-the design so it scales), and a **style**: font family, size, weight, colour,
+Every one carries a one-line description in the app, because nobody should have
+to guess what a "ring" is from a nine-point label.
+
+### Moving things around
+
+**Alignment guides.** Drag an element and Fathom works out what it is nearly
+lined up with — a neighbour's edge, a neighbour's centre, the middle of the
+widget — pulls it exactly onto the nearest one, and draws the line so you can
+see why it moved. Lines through the widget itself are pink and solid; lines
+matching a neighbour are green and dashed.
+
+![Alignment guides while dragging, and the field list](docs/images/guides.png)
+
+**Alignment buttons** line up whatever is selected: left, centre, right, top,
+middle, bottom, and two for spacing three or more things evenly. With a single
+element selected they line it up against the widget, so "centre this" is one
+click.
+
+**A grid** you can see, and snapping you can turn on separately — looking at the
+guides does not oblige you to be pulled onto them.
+
+**Preview** shows the design the way the desktop will, at actual size and at
+twice actual size, with the grid, handles and outlines gone. Escape goes back.
+
+**Arrow keys** nudge by one grid step, or a hundredth with snapping off.
+
+Every element carries a **frame** — position and size as a percentage of the
+design, so it scales — and a **style**: font family, size, weight, colour,
 gradient, opacity, rotation, letter spacing, line limit, corner radius, stroke,
 shadow, and content mode.
 
@@ -166,13 +192,20 @@ when that condition is true. "Hide this when it is zero" is one line.
 
 ## Live data
 
-Add a source in the **Data** tab, then bind an element to a field in it.
+Pick something on the widget, open the **Data** tab, and choose what it should
+show.
+
+Fields are listed in plain words — "Charge", "Free space", "Town or city" — and
+each one shows what it says *right now*, so you choose by looking at the answer
+rather than at the name of the question. They are grouped and searchable. The
+raw tree of field names is still there, behind a disclosure, because a web
+endpoint's fields have no descriptions and there is nowhere else to reach them.
 
 ![Binding an element to a field](docs/images/data.png)
 
 | Source | What it gives you | Asks permission |
 |---|---|---|
-| **This Mac** | 42 fields across ten branches | No |
+| **This Mac** | Around a hundred fields, grouped in plain words | No |
 | **Web endpoint** | Any JSON API, browsable as a tree | No |
 | **Calendar** | Your upcoming events | Yes |
 | **Reminders** | What is due | Yes |
@@ -183,7 +216,8 @@ information, connected Bluetooth devices, and your location. CPU and network are
 
 **Web endpoints** are the interesting ones. Paste a URL, and Fathom fetches it
 and shows you the response as a tree with the real values in it. Click a field
-to bind the selected element to it. Nothing is fetched until you ask, and then
+to bind the selected element to it. Responses are capped at 8 MB and 32 levels
+deep — an endpoint cannot use up the memory a widget extension is allowed. Nothing is fetched until you ask, and then
 only when a design using it refreshes.
 
 ### Location
@@ -348,10 +382,15 @@ widgets rather than silently replacing the first.
 <details>
 <summary><b>Design</b></summary>
 
-- Ten element kinds: text, symbol, shape, divider, arc, sparkline, image, bar, repeater, group
+- Ten element kinds: text, icon, box, line, ring, graph, picture, bar, list, group
+- An icon picker — 183 built-in icons, grouped and searchable, no typing names
+- Alignment guides while dragging: neighbour edges, neighbour centres, widget centre
+- Eight alignment buttons, including centring a single element in the widget
+- A visible grid, with snapping as a separate switch
+- Preview at actual size and twice actual size, with the editor taken away
 - Nesting — groups and repeaters hold other elements
 - Drag, resize and snap on the canvas; zoom; a layer list
-- Fractional frames, so a design scales to any surface
+- Frames as percentages, so a design scales to any surface
 - Font family, size, weight, design, monospaced digits, letter spacing, line limit
 - Foreground and fill colours, gradients with an angle, opacity, rotation
 - Corner radius, stroke colour and width, shadow radius, colour and offset
@@ -366,9 +405,12 @@ widgets rather than silently replacing the first.
 <details>
 <summary><b>Data</b></summary>
 
-- This Mac: 42 fields over date, battery, disk, CPU, memory, network, host, devices and place
+- This Mac: around a hundred fields over date, battery, disk, CPU, memory, network, host, devices and place
+- Fields listed in plain words, grouped and searchable, each showing its value right now
+- The raw field tree still available for anything the plain list does not name
 - CPU and network as rates, computed between refreshes
 - Any JSON endpoint, with a browsable tree of the real response
+- Responses capped at 8 MB and 32 levels deep, so an endpoint cannot exhaust a widget's memory
 - Key paths with dots and bracket indexing — `daily.temperature_2m_max[0]`
 - Calendar events and reminders
 - Location tokens in URLs: `{latitude}` `{longitude}` `{city}` `{countryCode}` `{timezone}`
