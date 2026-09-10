@@ -31,6 +31,14 @@ struct EditorView: View {
             InspectorView(model: model)
                 .frame(width: 300)
         }
+        // Bounded height, so the inspector's ScrollView actually scrolls.
+        //
+        // Without it the row grows to whatever its tallest child wants, the
+        // scroll view is offered unbounded height, and content past the bottom
+        // of the window is simply unreachable — real scroll-wheel events did
+        // nothing. That is how the Wallpaper controls, the Summon section and
+        // the "Grant again" button all ended up impossible to click.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task(id: model.doc.id) { await model.resolve() }
         // Re-resolve on the same cadence the widget uses, so the canvas and the
         // desktop never disagree by more than one tick.
