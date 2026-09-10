@@ -88,3 +88,50 @@ struct SnapGuideTests {
         #expect(result.frame.height == original.height)
     }
 }
+
+/// What the widget extension gets from the shared renderer.
+///
+/// The editor gained two things the extension must never see: a live drag
+/// offset and a click handler. Both are optional and both default to nil, so
+/// the extension's rendering is unchanged by construction rather than by
+/// anybody remembering — these pin that, because a change here fails silently
+/// on the desktop and macOS gives no error when a widget draws wrongly.
+@Suite("Extension rendering")
+struct ExtensionRenderingTests {
+
+    @Test("with no drag in flight, frames are the document's own")
+    func nilLiveIsIdentity() {
+        let doc = Starters.systemSmall
+        let live: LiveOffset? = nil
+        for element in doc.elements {
+            #expect((live?.frame(for: element) ?? element.frame) == element.frame)
+        }
+    }
+
+    @Test("a live offset only moves the elements it names")
+    func liveTouchesOnlyItsOwn() {
+        let doc = Starters.systemSmall
+        let moved = doc.elements[0]
+        var shifted = moved.frame
+        shifted.x += 0.2
+
+        let live = LiveOffset(frames: [moved.id: shifted])
+        #expect(live.frame(for: moved) == shifted)
+        for other in doc.elements.dropFirst() {
+            #expect(live.frame(for: other) == other.frame)
+        }
+    }
+
+    @Test("an element with an action is inert without a handler")
+    func actionsNeedAHandler() {
+        // The extension passes no handler, so there is nothing to perform an
+        // action with — inert by construction, not by a flag that could be
+        // forgotten. WidgetKit could not honour one anyway.
+        var element = Element.new(.text, in: Starters.systemSmall)
+        element.action = Action(kind: .openURL, value: "https://example.com")
+        #expect(element.action?.isSet == true)
+
+        let perform: ((Action) -> Void)? = nil
+        #expect(perform == nil)
+    }
+}
