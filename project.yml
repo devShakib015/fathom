@@ -12,7 +12,10 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.0"
+    # The fallback for a local build. A tagged release overrides it from the
+    # tag itself, so the two can never disagree again — v0.1.1 shipped
+    # reporting 0.1.0 because this was a second place to remember.
+    MARKETING_VERSION: "0.1.1"
     CURRENT_PROJECT_VERSION: "1"
     # Trap 1: macOS silently refuses to register an unsandboxed widget
     # extension. It never reaches pluginkit, never reaches the gallery, and

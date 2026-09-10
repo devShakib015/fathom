@@ -48,11 +48,19 @@ jobs:
       # the shipping path exactly: Fathom has no Developer ID, and sign.sh reads
       # the signature back to prove the sandbox and the shared-store exception
       # survived it: a replaced signature carries none unless handed them back.
+      # Taken from the tag, so the version a release reports is the version it
+      # was tagged as. v0.1.1 shipped saying 0.1.0 because project.yml was a
+      # second place that had to be remembered and was not.
+      - name: Version from the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: echo "MARKETING_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
       - name: Build
         run: |
           xcodebuild -project Fathom.xcodeproj -scheme Fathom \
             -configuration Release -derivedDataPath build \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+            ${MARKETING_VERSION:+MARKETING_VERSION=$MARKETING_VERSION} \
             build
 
       - name: Sign, and verify the entitlements survived
