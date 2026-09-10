@@ -34,8 +34,17 @@ struct Place: Codable, Equatable, Sendable {
     var isAuthorised: Bool
 
     /// The best single label for this place, never empty.
+    ///
+    /// Says so plainly when there is no location, rather than falling through
+    /// to the stand-in's coordinates. Seen on a real widget: the footer read
+    /// "51.48, -0.00", which is Greenwich — presented exactly as if that were
+    /// where the reader was. The whole reason `unknown` carries a flag is to
+    /// avoid a wrong answer that looks like a right one, and the label was
+    /// quietly undoing it.
     var label: String {
-        city ?? region ?? country ?? String(format: "%.2f, %.2f", latitude, longitude)
+        guard isAuthorised else { return "Location off" }
+        return city ?? region ?? country
+            ?? String(format: "%.2f, %.2f", latitude, longitude)
     }
 
     /// Somewhere to stand before the user has said yes.

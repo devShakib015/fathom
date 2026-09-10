@@ -111,12 +111,15 @@ struct LocationTests {
         #expect(doc.sanitised.elements[0].text == "My weather")
     }
 
-    @Test("the unknown place is marked unauthorised and still renders")
+    @Test("with no location, the label says so rather than naming Greenwich")
     func unknownPlace() {
         let place = Place.unknown
         #expect(!place.isAuthorised)
-        // Never empty: a widget bound to place.label shows something.
         #expect(!place.label.isEmpty)
+        // It used to fall through to the stand-in's coordinates and print
+        // "51.48, -0.00" on the widget, which reads as a real place.
+        #expect(place.label == "Location off")
+        #expect(!place.label.contains("51"))
     }
 
     @Test("a place round-trips through JSON, to the second")
@@ -149,7 +152,7 @@ struct LocationTests {
         place.region = nil
         #expect(place.label == "Bangladesh")
         place.country = nil
-        #expect(place.label == "23.78, 90.40")
+        #expect(place.label == "23.78, 90.40")   // authorised, so coordinates are honest
     }
 
     @Test("the editor and the sharing sheet agree on what a URL will contact")

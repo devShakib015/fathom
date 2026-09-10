@@ -8,7 +8,24 @@ enum AboutWindow {
 /// Overlays are windows Fathom owns, so Fathom has to still be running for
 /// them to exist. Closing the editor is not quitting.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Reopens the editor. Set by the app, called when the Dock icon is
+    /// clicked with nothing on screen.
+    nonisolated(unsafe) static var reopen: (() -> Void)?
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Without this, closing the editor stranded the app.
+    ///
+    /// Staying alive after the last window closes is deliberate — overlays and
+    /// the menu bar are windows Fathom owns, and they should survive the editor
+    /// being put away. But nothing brought the editor back: clicking the Dock
+    /// icon did nothing, `open -a Fathom` did nothing, and the only way in was
+    /// to quit and relaunch. Half of that behaviour was implemented.
+    func applicationShouldHandleReopen(_ sender: NSApplication,
+                                       hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { AppDelegate.reopen?() }
+        return true
+    }
 }
 
 @main
@@ -36,6 +53,9 @@ struct FathomApp: App {
                 .environment(summon)
                 .environment(wallpaper)
                 .task {
+                    // Captured while a window exists, and kept after it goes,
+                    // so the Dock can ask for it back.
+                    AppDelegate.reopen = { openWindow(id: "main") }
                     overlays.start()
                     menuBar.start()
                     island.start()
@@ -53,6 +73,15 @@ struct FathomApp: App {
                 .frame(minWidth: 1080, minHeight: 640)
                 .preferredColorScheme(.dark)
         }
+        // Always opens, whatever state macOS remembered.
+        //
+        // The editor was closed when the app last quit, so macOS restored that
+        // — and launched Fathom with no window at all. Combined with staying
+        // alive after the last window closes, that made the app permanently
+        // headless once anybody closed it: no window on launch, and nothing
+        // that could bring one back.
+        .defaultLaunchBehavior(.presented)
+        .restorationBehavior(.disabled)
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1320, height: 800)
@@ -62,6 +91,11 @@ struct FathomApp: App {
             // three things Fathom promises: free, MIT, no telemetry.
             CommandGroup(replacing: .appInfo) {
                 Button("About \(AppInfo.name)") { openAbout() }
+            }
+            // A keyboard way back to the editor, for the same reason.
+            CommandGroup(after: .windowList) {
+                Button("Fathom Window") { openWindow(id: "main") }
+                    .keyboardShortcut("0", modifiers: .command)
             }
             EditorCommands()
         }
