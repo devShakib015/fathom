@@ -10,7 +10,17 @@ enum Palette {
     static let accentAltHex  = "#4FC3E8"
     static let textHex       = "#E8F2EE"
     static let textDimHex    = "#9BB3AB"
-    static let hairlineHex   = "#0D1815"
+    /// Separators, lifted from #0D1815.
+    ///
+    /// Measured at 1.09:1 against the background — close enough to invisible
+    /// that the panels had no structure at all. Not a WCAG failure, since a
+    /// divider is decoration rather than text or a control, but a separator
+    /// nobody can see is not separating anything. 1.50:1 is still quiet and is
+    /// actually there.
+    ///
+    /// Everything that carries meaning already passes AA comfortably: body text
+    /// 15.0:1 on surface, dim text 7.7:1, the accent 9.7:1 against a 3:1 bar.
+    static let hairlineHex   = "#243330"
 
     static let background = ColorSpec(backgroundHex).color
     static let surface    = ColorSpec(surfaceHex).color

@@ -77,6 +77,26 @@ struct CanvasView: View {
         .onDisappear { model.endGesture() }
     }
 
+    /// Selects the next element, in the order the layer list shows them.
+    ///
+    /// Wraps at both ends, and starts from the top when nothing is selected, so
+    /// Tab always does something rather than silently failing on an empty
+    /// selection.
+    private func cycleSelection(by step: Int) -> KeyPress.Result {
+        let ids = placements.filter { !$0.isTemplate }.map(\.id)
+        guard !ids.isEmpty else { return .ignored }
+        guard let current = model.selection.first,
+              let index = ids.firstIndex(of: current) else {
+            model.select(ids[0])
+            focused = true
+            return .handled
+        }
+        let next = (index + step + ids.count) % ids.count
+        model.select(ids[next])
+        focused = true
+        return .handled
+    }
+
     /// One grid step per press, or one hundredth with the grid off — the two
     /// sizes of adjustment anyone actually wants from an arrow key.
     private func nudge(_ dx: Double, _ dy: Double) -> KeyPress.Result {
@@ -208,6 +228,14 @@ struct CanvasView: View {
                     .onKeyPress(.rightArrow) { nudge(1, 0) }
                     .onKeyPress(.upArrow) { nudge(0, -1) }
                     .onKeyPress(.downArrow) { nudge(0, 1) }
+                    // Reaching an element without a mouse.
+                    //
+                    // Arrow keys could already move a selection, but nothing
+                    // could make one — the only way to select anything was to
+                    // click it, which left the canvas unusable from the
+                    // keyboard however good the nudging was.
+                    .onKeyPress(.tab) { cycleSelection(by: 1) }
+                    .onKeyPress(.escape) { model.deselect(); return .handled }
                     .onTapGesture { focused = true; model.deselect() }
 
                 if previewing { preview } else { widget.padding(60) }
