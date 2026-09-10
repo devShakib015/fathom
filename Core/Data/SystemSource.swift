@@ -65,16 +65,6 @@ enum SystemSource {
     /// browser before anything has been fetched.
     static var schemaDescription: [(path: String, label: String)] {
         [
-            ("place.city", "Town or city, once located"),
-            ("place.region", "State or province"),
-            ("place.country", "Country"),
-            ("place.countryCode", "Two-letter country code"),
-            ("place.label", "Best available name for where you are"),
-            ("place.latitude", "Degrees north"),
-            ("place.longitude", "Degrees east"),
-            ("place.timeZone", "IANA time zone identifier"),
-            ("place.isAuthorised", "Fathom has location permission"),
-            ("place.ageMinutes", "How long ago the location was resolved"),
             ("date.now", "Current date and time"),
             ("date.epoch", "Seconds since 1970"),
             ("battery.percent", "Charge, 0…1"),
@@ -107,6 +97,16 @@ enum SystemSource {
             ("devices", "Bluetooth input devices, a list"),
             ("devices[0].name", "First device's name"),
             ("devices[0].percent", "First device's charge, 0…1"),
+            ("place.city", "Town or city, once located"),
+            ("place.region", "State or province"),
+            ("place.country", "Country"),
+            ("place.countryCode", "Two-letter country code"),
+            ("place.label", "Best available name for where you are"),
+            ("place.latitude", "Degrees north"),
+            ("place.longitude", "Degrees east"),
+            ("place.timeZone", "IANA time zone identifier"),
+            ("place.isAuthorised", "Fathom has location permission"),
+            ("place.ageMinutes", "How long ago the location was resolved"),
         ]
     }
 

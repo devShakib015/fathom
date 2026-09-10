@@ -280,22 +280,32 @@ private struct TreeBrowser: View {
         InspectorSection(title: "Fields") {
             if let root {
                 Text(model.focusedElement == nil
-                     ? "Select an element, then click a field to bind it."
-                     : "Click a field to bind it to \(model.focusedElement!.displayName).")
+                     ? "Pick something on the widget first, then choose what it should show."
+                     : "Choose what \(model.focusedElement!.displayName) should show.")
                     .font(.system(size: 10))
                     .foregroundStyle(Palette.textDim)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if source.kind == .json { SuggestFieldsRow(root: root) }
 
-                VStack(alignment: .leading, spacing: 0) {
-                    TreeNode(label: source.name, path: "", value: root, depth: 0,
-                             expanded: $expanded, model: model, sourceID: source.id, onBind: onBind)
+                // Plain names first; the raw tree behind a disclosure.
+                //
+                // Every field of a built-in source already carried a written
+                // description, and nothing was showing it — the only way
+                // through was a tree of the names the data uses. The tree stays,
+                // because a web endpoint's fields have no descriptions and there
+                // is nowhere else to reach them, but it is no longer what
+                // somebody meets first.
+                if source.schema.isEmpty {
+                    rawTree(root)
+                } else {
+                    FieldPicker(model: model, source: source, onBind: onBind)
+                    DisclosureGroup("All fields, as the data names them") {
+                        rawTree(root)
+                    }
+                    .font(.system(size: 10))
+                    .foregroundStyle(Palette.textDim)
                 }
-                .padding(.vertical, 4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Palette.surface.opacity(0.4),
-                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             } else if model.isResolving {
                 ProgressView().controlSize(.small)
             } else {
@@ -305,6 +315,17 @@ private struct TreeBrowser: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private func rawTree(_ root: DataValue) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TreeNode(label: source.name, path: "", value: root, depth: 0,
+                     expanded: $expanded, model: model, sourceID: source.id, onBind: onBind)
+        }
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.surface.opacity(0.4),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 

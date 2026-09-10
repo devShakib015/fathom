@@ -164,6 +164,28 @@ struct DataSource: Codable, Identifiable, Hashable {
         DataSource(name: "System", kind: .system)
     }
 
+    /// A plain name for the branch a key path starts with.
+    ///
+    /// The stored names are the ones the data uses — `disk`, `devices`,
+    /// `place` — which is right for a key path and wrong for a heading somebody
+    /// reads while deciding what to put on a widget.
+    static func groupName(forRoot root: String) -> String {
+        switch root {
+        case "date": "Time and date"
+        case "battery": "Battery"
+        case "disk": "Storage"
+        case "cpu": "Processor"
+        case "memory": "Memory"
+        case "network": "Network"
+        case "system": "This Mac"
+        case "devices": "Connected devices"
+        case "place": "Where you are"
+        case "events": "Events"
+        case "reminders": "Reminders"
+        default: root.capitalized
+        }
+    }
+
     /// The fields this source offers, for the editor's browser before anything
     /// has been read.
     var schema: [(path: String, label: String)] {

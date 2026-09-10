@@ -13,6 +13,9 @@ struct CanvasView: View {
     /// Points per unit of document space, chosen to fit the available room.
     @State private var zoom: Double = 2
     @State private var dragOrigin: [UUID: Frame] = [:]
+    /// Lines to draw while something is being dragged, showing what it has
+    /// lined up with.
+    @State private var guides: [SnapGuide] = []
     /// Arrow-key nudging needs real keyboard focus, and clicking an element
     /// goes through a drag gesture that does not grant it. The canvas takes
     /// focus explicitly whenever anything on it is touched.
@@ -219,6 +222,7 @@ struct CanvasView: View {
             WidgetCanvas(doc: model.doc, data: model.data)
                 .allowsHitTesting(false)
             if model.gridVisible, !previewing { grid }
+            if !previewing { guideLines }
             if !previewing { chrome }
         }
         .frame(width: canvasSize.width, height: canvasSize.height)
@@ -227,6 +231,35 @@ struct CanvasView: View {
             RoundedRectangle(cornerRadius: WidgetDoc.Family.cornerRadius * zoom, style: .continuous)
                 .stroke(.white.opacity(0.08), lineWidth: 1))
         .shadow(color: .black.opacity(0.5), radius: 26, y: 12)
+    }
+
+    /// The alignment lines, drawn only while dragging.
+    ///
+    /// A line through the middle of the widget is worth seeing more loudly than
+    /// one that matches a neighbour's edge, so the two are drawn differently.
+    private var guideLines: some View {
+        Canvas { context, size in
+            for guide in guides {
+                var path = Path()
+                switch guide.axis {
+                case .vertical:
+                    let x = guide.position * size.width
+                    path.move(to: CGPoint(x: x, y: 0))
+                    path.addLine(to: CGPoint(x: x, y: size.height))
+                case .horizontal:
+                    let y = guide.position * size.height
+                    path.move(to: CGPoint(x: 0, y: y))
+                    path.addLine(to: CGPoint(x: size.width, y: y))
+                }
+                context.stroke(path,
+                               with: .color(guide.isWidgetEdge
+                                            ? Color(red: 1, green: 0.35, blue: 0.6)
+                                            : Palette.accent),
+                               style: StrokeStyle(lineWidth: guide.isWidgetEdge ? 1.2 : 1,
+                                                  dash: guide.isWidgetEdge ? [] : [4, 3]))
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     private var grid: some View {
@@ -279,7 +312,8 @@ struct CanvasView: View {
                               isHidden: placement.isHidden,
                               model: model,
                               containerSize: placement.containerSize,
-                              dragOrigin: $dragOrigin)
+                              dragOrigin: $dragOrigin,
+                              guides: $guides)
                     .frame(width: max(placement.rect.width, 10),
                            height: max(placement.rect.height, 10))
                     .position(x: placement.rect.midX, y: placement.rect.midY)
@@ -309,6 +343,7 @@ private struct ElementHandle: View {
     /// not the canvas's.
     let containerSize: CGSize
     @Binding var dragOrigin: [UUID: Frame]
+    @Binding var guides: [SnapGuide]
 
     private let handleSize: CGFloat = 9
     /// Whether the current press has travelled far enough to be a move. A
@@ -384,11 +419,48 @@ private struct ElementHandle: View {
                 let dx = value.translation.width / containerSize.width
                 let dy = value.translation.height / containerSize.height
                 let origins = dragOrigin
+                // Everything that is not being dragged is something to line up
+                // against — its siblings, so a child of a group lines up inside
+                // that group rather than against the whole widget.
+                let siblings: [Element]
+                if let parentID = model.doc.elements.parent(of: element.id),
+                   let parent = model.doc.elements.find(parentID) {
+                    siblings = parent.children
+                } else {
+                    siblings = model.doc.elements
+                }
+                let others = siblings
+                    .filter { origins[$0.id] == nil }
+                    .map(\.frame)
+
+                // One element snaps to its neighbours; a multi-element drag
+                // stays rigid, so it moves by a plain offset and the guides
+                // stay out of it.
+                var lines: [SnapGuide] = []
+                var offset = (x: 0.0, y: 0.0)
+                if origins.count == 1, let origin = origins[element.id] {
+                    let moved = Frame(x: origin.x + dx, y: origin.y + dy,
+                                      width: origin.width, height: origin.height)
+                    let snapped = SnapGuides.snap(moved, against: others)
+                    offset = (snapped.frame.x - moved.x, snapped.frame.y - moved.y)
+                    lines = snapped.guides
+                }
+                guides = lines
+
                 model.edit("Move", coalescing: true) { doc in
                     for (id, origin) in origins {
                         doc.elements.update(id) { element in
-                            element.frame.x = model.snap(origin.x + dx)
-                            element.frame.y = model.snap(origin.y + dy)
+                            // A guide wins over the grid: it is the thing the
+                            // person can see, and being pulled somewhere other
+                            // than the line under the pointer is the definition
+                            // of snapping feeling wrong.
+                            if lines.isEmpty {
+                                element.frame.x = model.snap(origin.x + dx)
+                                element.frame.y = model.snap(origin.y + dy)
+                            } else {
+                                element.frame.x = origin.x + dx + offset.x
+                                element.frame.y = origin.y + dy + offset.y
+                            }
                             element.frame = element.frame.normalised
                         }
                     }
@@ -401,6 +473,7 @@ private struct ElementHandle: View {
                 }
                 isMoving = false
                 dragOrigin.removeAll()
+                guides = []
                 model.endGesture()
             }
     }
