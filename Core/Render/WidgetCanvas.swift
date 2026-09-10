@@ -7,6 +7,17 @@ import SwiftUI
 /// exactly — an editor preview that differs from the placed widget is worse
 /// than having no preview, because it teaches the user to distrust what they
 /// see while designing.
+/// Frames the editor is showing but has not written to the document.
+///
+/// Covers moving and resizing alike: both used to write into `model.doc` on
+/// every mouse event, and both were capped at fifteen frames a second because
+/// assigning `doc` rebuilds every view observing it.
+struct LiveOffset: Equatable {
+    var frames: [UUID: Frame]
+
+    func frame(for element: Element) -> Frame { frames[element.id] ?? element.frame }
+}
+
 struct WidgetCanvas: View {
     let doc: WidgetDoc
     let data: ResolvedData
@@ -19,6 +30,12 @@ struct WidgetCanvas: View {
     /// could not honour one anyway: App Intents were tried here and never ran
     /// a single timeline.
     var perform: ((Action) -> Void)?
+    /// Elements being dragged, and how far, in unit space.
+    ///
+    /// Lets the editor show a drag without writing it into the document on
+    /// every mouse event — the thing that was capping dragging at fifteen
+    /// frames a second. Nil everywhere else, including the widget extension.
+    var live: LiveOffset?
 
     var body: some View {
         GeometryReader { geo in
@@ -33,7 +50,8 @@ struct WidgetCanvas: View {
             ZStack(alignment: .topLeading) {
                 Color.clear
                 ElementList(elements: doc.elements, doc: doc, data: data,
-                            scope: .root, box: size, scale: scale, perform: perform)
+                            scope: .root, box: size, scale: scale, perform: perform,
+                            live: live)
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
         }
@@ -51,12 +69,13 @@ struct ElementList: View {
     let box: CGSize
     let scale: Double
     var perform: ((Action) -> Void)?
+    var live: LiveOffset?
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(elements) { element in
                 if data.isVisible(element, in: doc, scope: scope) {
-                    let rect = element.frame.resolved(in: box)
+                    let rect = (live?.frame(for: element) ?? element.frame).resolved(in: box)
                     PlacedElement(element: element, doc: doc, data: data, scope: scope,
                                   size: rect.size, scale: scale, perform: perform)
                         .frame(width: rect.width, height: rect.height)

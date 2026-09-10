@@ -16,6 +16,19 @@ struct CanvasView: View {
     /// Lines to draw while something is being dragged, showing what it has
     /// lined up with.
     @State private var guides: [SnapGuide] = []
+    /// Where a drag has got to, before it is committed.
+    ///
+    /// Dragging used to write the moved frame into `model.doc` on every mouse
+    /// event. Measured: that capped the gesture at fifteen events a second
+    /// while the driver was posting a hundred, because assigning `doc` makes
+    /// every view observing it rebuild — the canvas, the layer list, the
+    /// inspector, the header. Not the drawing: removing the shadow, the
+    /// material and two thirds of the window changed nothing, and removing the
+    /// document write took it straight to a hundred and five.
+    ///
+    /// So the document is left alone until the mouse comes up, and the offset
+    /// lives here instead, moving only what it has to.
+    @State private var live: LiveOffset?
     /// Arrow-key nudging needs real keyboard focus, and clicking an element
     /// goes through a drag gesture that does not grant it. The canvas takes
     /// focus explicitly whenever anything on it is touched.
@@ -36,7 +49,19 @@ struct CanvasView: View {
     /// Every element's absolute rect, nested ones included, so a repeater's
     /// child can be clicked and dragged like anything else.
     private var placements: [Placement] {
-        ElementLayout.placements(model.doc, data: model.data, in: canvasSize, scale: zoom)
+        let base = ElementLayout.placements(model.doc, data: model.data, in: canvasSize, scale: zoom)
+        guard let live else { return base }
+        // The handles follow the gesture without the document knowing about it.
+        return base.map { placement in
+            guard let frame = live.frames[placement.id] else { return placement }
+            var moved = placement
+            moved.rect = frame.resolved(in: placement.containerSize)
+                .offsetBy(dx: placement.rect.minX - placement.element.frame
+                                .resolved(in: placement.containerSize).minX,
+                          dy: placement.rect.minY - placement.element.frame
+                                .resolved(in: placement.containerSize).minY)
+            return moved
+        }
     }
 
     var body: some View {
@@ -232,7 +257,8 @@ struct CanvasView: View {
             // live means every canvas click races the selection layer above
             // them — which is precisely how clicking an element stopped
             // selecting it. Only the chrome should ever receive a click.
-            WidgetCanvas(doc: model.doc, data: model.data)
+            WidgetCanvas(doc: model.doc, data: model.data,
+                         live: previewing ? nil : live)
                 .allowsHitTesting(false)
             if model.gridVisible, !previewing { grid }
             if !previewing { guideLines }
@@ -326,7 +352,8 @@ struct CanvasView: View {
                               model: model,
                               containerSize: placement.containerSize,
                               dragOrigin: $dragOrigin,
-                              guides: $guides)
+                              guides: $guides,
+                              live: $live)
                     .frame(width: max(placement.rect.width, 10),
                            height: max(placement.rect.height, 10))
                     .position(x: placement.rect.midX, y: placement.rect.midY)
@@ -357,6 +384,7 @@ private struct ElementHandle: View {
     let containerSize: CGSize
     @Binding var dragOrigin: [UUID: Frame]
     @Binding var guides: [SnapGuide]
+    @Binding var live: LiveOffset?
 
     private let handleSize: CGFloat = 9
     /// Whether the current press has travelled far enough to be a move. A
@@ -460,33 +488,34 @@ private struct ElementHandle: View {
                 }
                 guides = lines
 
-                model.edit("Move", coalescing: true) { doc in
-                    for (id, origin) in origins {
-                        doc.elements.update(id) { element in
-                            // A guide wins over the grid: it is the thing the
-                            // person can see, and being pulled somewhere other
-                            // than the line under the pointer is the definition
-                            // of snapping feeling wrong.
-                            if lines.isEmpty {
-                                element.frame.x = model.snap(origin.x + dx)
-                                element.frame.y = model.snap(origin.y + dy)
-                            } else {
-                                element.frame.x = origin.x + dx + offset.x
-                                element.frame.y = origin.y + dy + offset.y
-                            }
-                            element.frame = element.frame.normalised
-                        }
-                    }
+                // Shown, not stored. The document is written once, when the
+                // mouse comes up.
+                var moved: [UUID: Frame] = [:]
+                for (id, origin) in origins {
+                    var frame = origin
+                    frame.x = origin.x + dx + offset.x
+                    frame.y = origin.y + dy + offset.y
+                    moved[id] = frame.normalised
                 }
+                live = LiveOffset(frames: moved)
             }
             .onEnded { _ in
                 if !isMoving {
                     focused = true
                     model.select(element.id, add: NSEvent.modifierFlags.contains(.shift))
                 }
+                // One write for the whole gesture, instead of one per event.
+                if let live, isMoving {
+                    model.edit("Move") { doc in
+                        for (id, frame) in live.frames {
+                            doc.elements.update(id) { $0.frame = frame }
+                        }
+                    }
+                }
                 isMoving = false
                 dragOrigin.removeAll()
                 guides = []
+                live = nil
                 model.endGesture()
             }
     }
@@ -515,12 +544,16 @@ private struct ElementHandle: View {
                 guard let origin = dragOrigin[element.id] else { return }
                 let dx = value.translation.width / containerSize.width
                 let dy = value.translation.height / containerSize.height
-                model.update(element.id, "Resize", coalescing: true) { element in
-                    element.frame = corner.resized(origin, dx: dx, dy: dy, snap: model.snap)
-                }
+                // Shown, not stored — the same reason moving does it this way.
+                live = LiveOffset(frames: [element.id:
+                    corner.resized(origin, dx: dx, dy: dy, snap: model.snap)])
             }
             .onEnded { _ in
+                if let live, let frame = live.frames[element.id] {
+                    model.update(element.id, "Resize") { $0.frame = frame }
+                }
                 dragOrigin.removeAll()
+                live = nil
                 model.endGesture()
             }
     }

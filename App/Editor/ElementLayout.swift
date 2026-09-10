@@ -12,8 +12,9 @@ struct Placement: Identifiable {
     let id: UUID
     let element: Element
     let depth: Int
-    /// Absolute, in canvas points.
-    let rect: CGRect
+    /// Absolute, in canvas points. Mutable so a drag in progress can move
+    /// the handles without the document being touched.
+    var rect: CGRect
     /// The box this element's unit frame is measured against — what a drag
     /// distance has to be divided by to become a change in `frame`.
     let containerSize: CGSize
